@@ -16,11 +16,13 @@ from game.protocol import (
     make_welcome, make_lobby_update, make_countdown,
     make_game_start, make_player_event, make_timer_update,
     make_game_over, make_error, make_chat_broadcast,
+    make_map_vote_state, make_map_selected,
     ErrorCode, COUNTDOWN_SECONDS, GAME_TIME_LIMIT,
     TIMER_BROADCAST_INTERVAL, CRITICAL_TIME_MARKS,
     MIN_PLAYERS, MAX_PLAYERS,
 )
 from game.state import GameState
+from game.rooms import MAPS
 
 HOST = "0.0.0.0"
 PORT = 5000
@@ -33,10 +35,13 @@ class Server:
 
         self.state      = State.WAITING_PLAYERS
         self.game_state = GameState()
-        self.lock       = threading.Lock()          # protege estado compartilhado
+        self.lock       = threading.Lock()
 
         # player_id → socket
         self.connections: dict[str, socket.socket] = {}
+
+        # Votos de mapa: player_id → map_key
+        self._map_votes: dict[str, str] = {}
 
         self._timer_thread: threading.Thread | None = None
         self._game_start_time: float = 0.0
@@ -104,6 +109,22 @@ class Server:
     def _dispatch(self, conn: socket.socket, player_id: str | None, msg_type: str, payload: dict) -> str | None:
         """Roteia cada mensagem para o handler correto. Retorna player_id."""
 
+        valid_types = {
+            ClientMsg.JOIN,
+            ClientMsg.READY,
+            ClientMsg.MAP_VOTE,
+            ClientMsg.ACTION,
+            ClientMsg.CHAT,
+            ClientMsg.DISCONNECT,
+        }
+
+        if msg_type not in valid_types:
+            self._send(conn, make_error(
+                ErrorCode.INVALID_ACTION,
+                f"Tipo de mensagem desconhecido: {msg_type}"
+            ))
+            return player_id
+
         if msg_type == ClientMsg.JOIN:
             return self._on_join(conn, payload)
 
@@ -113,6 +134,9 @@ class Server:
 
         if msg_type == ClientMsg.READY:
             self._on_ready(player_id)
+
+        elif msg_type == ClientMsg.MAP_VOTE:
+            self._on_map_vote(player_id, payload.get("map", ""))
 
         elif msg_type == ClientMsg.ACTION:
             self._on_action(player_id, payload.get("command", ""))
@@ -131,8 +155,11 @@ class Server:
         username = payload.get("username", "").strip()
 
         with self.lock:
-            if self.state == State.IN_GAME:
-                self._send(conn, make_error(ErrorCode.GAME_IN_PROGRESS, "Jogo em andamento. Aguarde a próxima partida."))
+            if self.state != State.WAITING_PLAYERS:
+                self._send(conn, make_error(
+                    ErrorCode.GAME_IN_PROGRESS,
+                    "A partida já foi iniciada ou está em contagem regressiva. Aguarde a próxima partida."
+                ))
                 return None
 
             if len(self.connections) >= MAX_PLAYERS:
@@ -156,6 +183,8 @@ class Server:
             players, ready_count = self.game_state.lobby_info()
             self._broadcast(make_lobby_update(players, ready_count))
             self._broadcast(make_player_event("joined", username, f"{username} entrou na sala."))
+            # Informa o estado atual de votos para o novo jogador
+            self._send(conn, self._make_map_vote_state())
 
             print(f"[JOIN] {username} ({player_id})")
             return player_id
@@ -177,34 +206,56 @@ class Server:
             if self.game_state.all_ready():
                 self._start_countdown()
 
-    def _on_action(self, player_id: str, command: str):
+    def _on_map_vote(self, player_id: str, map_key: str):
         with self.lock:
-            if self.state != State.IN_GAME:
+            if self.state != State.WAITING_PLAYERS:
+                return
+            if map_key not in MAPS:
                 conn = self.connections.get(player_id)
                 if conn:
-                    self._send(conn, make_error(ErrorCode.NOT_IN_GAME, "O jogo não está em andamento."))
+                    self._send(conn, make_error(ErrorCode.INVALID_ACTION, f"Mapa inválido: '{map_key}'. Opções: {list(MAPS.keys())}"))
                 return
 
             player = self.game_state.get_player(player_id)
             if not player:
                 return
 
-            print(f"[ACTION] {player.username}: {command}")
-            responses = self.game_state.process_action(player_id, command)
+            self._map_votes[player_id] = map_key
+            print(f"[VOTE] {player.username} votou em '{map_key}'")
+            self._broadcast(self._make_map_vote_state())
 
-            conn = self.connections.get(player_id)
-            for i, msg in enumerate(responses):
-                if i == 0:
-                    # Primeiro item: ACTION_RESULT → unicast
-                    if conn:
-                        self._send(conn, msg)
+    def _make_map_vote_state(self) -> bytes:
+        votes: dict[str, int] = {k: 0 for k in MAPS}
+        for map_key in self._map_votes.values():
+            if map_key in votes:
+                votes[map_key] += 1
+        maps_info = {k: v["name"] for k, v in MAPS.items()}
+        return make_map_vote_state(votes, maps_info)
+
+    def _resolve_map(self) -> str:
+        """Retorna o mapa com mais votos. Em empate, escolhe o primeiro."""
+        tally: dict[str, int] = {k: 0 for k in MAPS}
+        for map_key in self._map_votes.values():
+            if map_key in tally:
+                tally[map_key] += 1
+        return max(tally, key=lambda k: tally[k])
+
+    def _on_action(self, player_id: str, command: str):
+        if self.state != State.IN_GAME:
+            return
+        
+        responses = self.game_state.process_action(player_id, command)
+        conn = self.connections.get(player_id)
+        
+        if conn:
+            for res in responses:
+                # CORREÇÃO: Se for uma atualização de sala ou evento, transmite para todos!
+                # O próprio cliente já filtra e ignora se não for a sala dele.
+                msg_str = res.decode("utf-8", errors="ignore")
+                if msg_str.startswith("ROOM_UPDATE") or msg_str.startswith("PLAYER_EVENT"):
+                    self._broadcast(res)
                 else:
-                    # Demais (ROOM_UPDATE etc.) → broadcast
-                    self._broadcast(msg)
-
-            # Verifica condição de vitória
-            if responses and b'"__ESCAPED__"' in responses[0]:
-                self._trigger_game_over("win")
+                    self._send(conn, res)
 
     def _on_chat(self, player_id: str, message: str):
         with self.lock:
@@ -239,11 +290,34 @@ class Server:
                 players, ready_count = self.game_state.lobby_info()
                 self._broadcast(make_lobby_update(players, ready_count))
 
+            elif self.state == State.COUNTDOWN:
+                if len(self.connections) < MIN_PLAYERS or not self.game_state.all_ready():
+                    self._cancel_countdown_locked(
+                        "A contagem foi cancelada porque não há jogadores suficientes para iniciar."
+                    )
+
             elif self.state == State.IN_GAME:
-                if len(self.connections) < 1:
-                    self._trigger_game_over("lose")
+                if len(self.connections) < MIN_PLAYERS:
+                    self._trigger_game_over(
+                        "lose",
+                        "💀 A partida foi encerrada porque restaram menos de 2 jogadores conectados."
+                    )
 
     # ── Countdown e início de jogo ───────────────────────────────
+
+    def _cancel_countdown_locked(self, reason: str):
+        """
+        Cancela a contagem regressiva e volta para o lobby.
+        Deve ser chamado com self.lock já adquirido.
+        """
+        if self.state != State.COUNTDOWN:
+            return
+
+        self.state = State.WAITING_PLAYERS
+        players, ready_count = self.game_state.lobby_info()
+        self._broadcast(make_lobby_update(players, ready_count))
+        self._broadcast(make_player_event("countdown_cancelled", "Servidor", reason))
+        print(f"[COUNTDOWN] Cancelado: {reason}")
 
     def _start_countdown(self):
         """Chamado dentro do lock."""
@@ -253,17 +327,50 @@ class Server:
 
     def _countdown_loop(self):
         for remaining in range(COUNTDOWN_SECONDS, 0, -1):
-            self._broadcast(make_countdown(remaining))
+            with self.lock:
+                if self.state != State.COUNTDOWN:
+                    return
+
+                if len(self.connections) < MIN_PLAYERS or not self.game_state.all_ready():
+                    self._cancel_countdown_locked(
+                        "A contagem foi cancelada porque não há jogadores suficientes para iniciar."
+                    )
+                    return
+
+                self._broadcast(make_countdown(remaining))
+
             time.sleep(1)
 
         with self.lock:
+            if self.state != State.COUNTDOWN:
+                return
+
+            if len(self.connections) < MIN_PLAYERS or not self.game_state.all_ready():
+                self._cancel_countdown_locked(
+                    "A contagem foi cancelada porque não há jogadores suficientes para iniciar."
+                )
+                return
+
+            # Resolve mapa vencedor e aplica
+            chosen_map = self._resolve_map()
+            self.game_state.set_map(chosen_map)
+            map_name = MAPS[chosen_map]["name"]
+            self._broadcast(make_map_selected(chosen_map, map_name))
+            print(f"[MAP] Mapa selecionado: {chosen_map} ({map_name})")
+
             self.state = State.IN_GAME
             self._game_start_time = time.time()
-            room = "laboratorio"
-            desc = self.game_state.room_states[room]["description"]
-            self._broadcast(make_game_start(room, desc, GAME_TIME_LIMIT))
-            # Envia o estado inicial da sala para todos
-            self._broadcast(self.game_state.initial_room_update(room))
+
+            # --- CORREÇÃO: Unicast do GAME_START para salas assimétricas ---
+            for pid, pconn in self.connections.items():
+                p = self.game_state.get_player(pid)
+                if p:
+                    player_room = p.current_room
+                    desc = self.game_state.room_states[player_room]["description"]
+                    # Envia a mensagem de início personalizada para a sala do jogador
+                    self._send(pconn, make_game_start(player_room, desc, GAME_TIME_LIMIT))
+                    # Envia o estado inicial dos objetos específicos daquela sala
+                    self._send(pconn, self.game_state.initial_room_update(player_room, p))
 
         print("[GAME] Partida iniciada!")
         self._timer_thread = threading.Thread(target=self._timer_loop, daemon=True)
@@ -290,7 +397,7 @@ class Server:
 
     # ── Game Over ────────────────────────────────────────────────
 
-    def _trigger_game_over(self, result: str):
+    def _trigger_game_over(self, result: str, message: str | None = None):
         """Chamado dentro do lock."""
         if self.state == State.GAME_OVER:
             return
@@ -298,9 +405,9 @@ class Server:
         elapsed = int(time.time() - self._game_start_time)
 
         if result == "win":
-            msg = f"🏆 Vocês escaparam em {elapsed // 60}m {elapsed % 60}s! Parabéns!"
+            msg = message or f"🏆 Vocês escaparam em {elapsed // 60}m {elapsed % 60}s! Parabéns!"
         else:
-            msg = "💀 O tempo esgotou. Vocês não conseguiram escapar desta vez."
+            msg = message or "💀 O tempo esgotou. Vocês não conseguiram escapar desta vez."
 
         self._broadcast(make_game_over(result, elapsed, msg))
         print(f"[GAME OVER] resultado={result} tempo={elapsed}s")
@@ -312,9 +419,11 @@ class Server:
         time.sleep(10)
         with self.lock:
             self.game_state.reset()
+            self._map_votes.clear()
             self.state = State.WAITING_PLAYERS
             players, ready_count = self.game_state.lobby_info()
             self._broadcast(make_lobby_update(players, ready_count))
+            self._broadcast(self._make_map_vote_state())
             print("[RESET] Nova partida disponível.")
 
     # ── Envio de mensagens ───────────────────────────────────────

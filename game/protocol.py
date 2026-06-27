@@ -13,8 +13,8 @@ MIN_PLAYERS = 2
 MAX_PLAYERS = 4
 COUNTDOWN_SECONDS = 10
 GAME_TIME_LIMIT = 1800        # 30 minutos em segundos
-TIMER_BROADCAST_INTERVAL = 30 # broadcast a cada 30 s
-CRITICAL_TIME_MARKS = {60, 30, 10}  # alertas extras nesses segundos
+TIMER_BROADCAST_INTERVAL = 600 # broadcast a cada 30 s
+CRITICAL_TIME_MARKS = {300, 60, 30, 10}  # alertas extras nesses segundos
 
 # ── Estados do servidor ──────────────────────────────────────────
 class State:
@@ -27,6 +27,7 @@ class State:
 class ClientMsg:
     JOIN       = "JOIN"
     READY      = "READY"
+    MAP_VOTE   = "MAP_VOTE"    # payload: {"map": "hospital"|"museu"}
     ACTION     = "ACTION"
     CHAT       = "CHAT"
     DISCONNECT = "DISCONNECT"
@@ -35,6 +36,8 @@ class ClientMsg:
 class ServerMsg:
     WELCOME        = "WELCOME"
     LOBBY_UPDATE   = "LOBBY_UPDATE"
+    MAP_VOTE_STATE = "MAP_VOTE_STATE"  # payload: {"votes": {"hospital": 1, "museu": 0}, "maps": {...}}
+    MAP_SELECTED   = "MAP_SELECTED"    # payload: {"map": str, "map_name": str}
     COUNTDOWN      = "COUNTDOWN"
     GAME_START     = "GAME_START"
     ACTION_RESULT  = "ACTION_RESULT"
@@ -76,6 +79,13 @@ def decode(raw: str) -> tuple[str, dict]:
 # ─────────────────────────────────────────────────────────────────
 #  Builders — Servidor → Cliente
 # ─────────────────────────────────────────────────────────────────
+
+def make_map_vote_state(votes: dict, maps: dict) -> bytes:
+    """votes: {"hospital": N, "museu": N}  maps: {"hospital": "🏥 Hospital Abandonado", ...}"""
+    return encode(ServerMsg.MAP_VOTE_STATE, {"votes": votes, "maps": maps})
+
+def make_map_selected(map_key: str, map_name: str) -> bytes:
+    return encode(ServerMsg.MAP_SELECTED, {"map": map_key, "map_name": map_name})
 
 def make_welcome(player_id: str, server_state: str) -> bytes:
     return encode(ServerMsg.WELCOME, {
@@ -124,7 +134,7 @@ def make_timer_update(remaining: int) -> bytes:
     return encode(ServerMsg.TIMER_UPDATE, {"remaining": remaining})
 
 def make_player_event(event: str, player: str, detail: str = "") -> bytes:
-    """event: 'joined' | 'left' | 'moved'"""
+    """event: 'joined' | 'left' | 'moved' | 'found' | 'solved'"""
     return encode(ServerMsg.PLAYER_EVENT, {
         "event": event,
         "player": player,
@@ -151,6 +161,9 @@ def make_error(code: str, message: str) -> bytes:
 # ─────────────────────────────────────────────────────────────────
 #  Builders — Cliente → Servidor  (usados no client.py)
 # ─────────────────────────────────────────────────────────────────
+
+def make_map_vote(map_key: str) -> bytes:
+    return encode(ClientMsg.MAP_VOTE, {"map": map_key})
 
 def make_join(username: str) -> bytes:
     return encode(ClientMsg.JOIN, {"username": username})

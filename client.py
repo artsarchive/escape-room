@@ -31,6 +31,7 @@ def print_msg(text: str):
     sys.stdout.flush()
 
 PROMPT = "\n> "
+MY_USERNAME: str | None = None
 
 
 # ── Renderizadores por tipo de mensagem ──────────────────────────
@@ -95,6 +96,12 @@ def render(msg_type: str, payload: dict):
         exits   = state.get("exits", {})
         room    = state.get("name", "")
 
+        # O servidor pode enviar ROOM_UPDATE em broadcast, mas o cliente
+        # só deve renderizar o estado detalhado da sala onde ele está.
+        # Assim ninguém vê objetos/saídas de salas em que não está presente.
+        if MY_USERNAME and MY_USERNAME not in here:
+            return
+
         exit_lines = []
         for direction, info in exits.items():
             lock_icon = "🔒" if info.get("locked") else "🔓"
@@ -124,7 +131,14 @@ def render(msg_type: str, payload: dict):
     elif msg_type == ServerMsg.PLAYER_EVENT:
         event  = payload.get("event", "")
         detail = payload.get("detail", "")
-        icons  = {"joined": "➕", "left": "➖", "moved": "🚶"}
+        icons  = {
+            "joined": "➕",
+            "left": "➖",
+            "moved": "🚶",
+            "found": "🔎",
+            "solved": "🧩",
+            "countdown_cancelled": "⏹",
+        }
         icon   = icons.get(event, "•")
         print_msg(f"{icon} {detail}")
 
@@ -229,6 +243,8 @@ def connect(host: str, port: int) -> socket.socket:
 
 
 def main():
+    global MY_USERNAME
+
     parser = argparse.ArgumentParser(description="ERP/1.0 Escape Room Client")
     parser.add_argument("--host", default=HOST)
     parser.add_argument("--port", default=PORT, type=int)
@@ -241,6 +257,8 @@ def main():
     username = input("  Seu nome: ").strip()
     while not username:
         username = input("  Nome não pode ser vazio. Tente novamente: ").strip()
+
+    MY_USERNAME = username
 
     try:
         sock = connect(args.host, args.port)
