@@ -1,4 +1,4 @@
-# 🚪 Escape Room — Jogo Cooperativo Cliente-Servidor
+# Escape Room — Jogo Cooperativo Cliente-Servidor
 
 [![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -8,7 +8,7 @@ Sistema de jogo cooperativo multiplayer implementado em arquitetura cliente-serv
 
 ---
 
-## 📋 Índice
+## Índice
 
 - [Sobre o Projeto](#-sobre-o-projeto)
 - [Motivação pela Escolha do TCP](#-motivação-pela-escolha-do-tcp)
@@ -23,13 +23,13 @@ Sistema de jogo cooperativo multiplayer implementado em arquitetura cliente-serv
 
 ---
 
-## 🎯 Sobre o Projeto
+## Sobre o Projeto
 
 O sistema é um jogo de **Escape Room cooperativo** onde **2 a 4 jogadores** conectados simultaneamente em rede local colaboram para resolver enigmas, compartilhar pistas e executar ações coordenadas com o objetivo de escapar de uma sala virtual dentro de um limite de tempo.
 
 A aplicação é executada inteiramente via terminal, sem dependências externas além da biblioteca padrão do Python. A comunicação entre os jogadores é mediada exclusivamente pelo servidor, que centraliza todo o estado do jogo e propaga eventos em tempo real para todos os clientes conectados.
 
-### 🎓 Objetivos Educacionais
+### Objetivos Educacionais
 
 - Implementação de sockets TCP em Python
 - Desenvolvimento de protocolo de camada de aplicação
@@ -38,7 +38,7 @@ A aplicação é executada inteiramente via terminal, sem dependências externas
 
 ---
 
-## 🔌 Motivação pela Escolha do TCP
+## Motivação pela Escolha do TCP
 
 O protocolo de transporte utilizado é o **TCP (Transmission Control Protocol)**. A escolha se justifica por:
 
@@ -52,7 +52,7 @@ O protocolo de transporte utilizado é o **TCP (Transmission Control Protocol)**
 
 ---
 
-## 📦 Requisitos Mínimos
+## Requisitos Mínimos
 
 ### Servidor
 
@@ -79,7 +79,7 @@ O protocolo de transporte utilizado é o **TCP (Transmission Control Protocol)**
 
 ---
 
-## 🚀 Como Executar
+## Como Executar
 
 ### 1. Clone o repositório
 
@@ -118,11 +118,11 @@ python client.py --host 192.168.1.10 --port 5000
 
 ---
 
-## 📡 Protocolo de Aplicação — ERP/1.0
+## Protocolo de Aplicação — ERP/1.0
 
 O **ERP (Escape Room Protocol)** versão 1.0 define o formato de todas as mensagens trocadas entre clientes e servidor.
 
-### 📨 Formato das Mensagens
+### Formato das Mensagens
 
 Todas as mensagens são objetos **JSON serializados**, seguidos do caractere delimitador `\n` (newline).
 
@@ -133,7 +133,7 @@ Todas as mensagens são objetos **JSON serializados**, seguidos do caractere del
 - `type`: identifica o tipo da mensagem
 - `payload`: dados específicos de cada tipo (ambos obrigatórios)
 
-### 🔄 Estados do Servidor
+### Estados do Servidor
 
 ```
 WAITING_PLAYERS → COUNTDOWN → IN_GAME → GAME_OVER
@@ -148,7 +148,7 @@ WAITING_PLAYERS → COUNTDOWN → IN_GAME → GAME_OVER
 | **IN_GAME** | Partida ativa. Aceita ACTION e CHAT. Timer em execução. |
 | **GAME_OVER** | Partida encerrada. Após 10 segundos, reseta para WAITING_PLAYERS. |
 
-### 📤 Mensagens: Cliente → Servidor
+### Mensagens: Cliente → Servidor
 
 | Tipo | Payload | Quando usar |
 |------|---------|-------------|
@@ -166,7 +166,7 @@ WAITING_PLAYERS → COUNTDOWN → IN_GAME → GAME_OVER
 {"type": "CHAT", "payload": {"message": "Achei a chave!"}}\n
 ```
 
-### 📥 Mensagens: Servidor → Cliente
+### Mensagens: Servidor → Cliente
 
 | Tipo | Payload principal | Tipo de Envio |
 |------|-------------------|---------------|
@@ -191,7 +191,7 @@ WAITING_PLAYERS → COUNTDOWN → IN_GAME → GAME_OVER
 {"type": "GAME_OVER", "payload": {"result": "win", "time_elapsed": 923, "message": "Vocês escaparam em 15m 23s!"}}\n
 ```
 
-### ❌ Códigos de Erro
+### Códigos de Erro
 
 | Código | Situação |
 |--------|----------|
@@ -207,7 +207,7 @@ WAITING_PLAYERS → COUNTDOWN → IN_GAME → GAME_OVER
 {"type": "ERROR", "payload": {"code": "NAME_TAKEN", "message": "O nome 'Lucas' já está em uso. Escolha outro username."}}\n
 ```
 
-### 🔄 Fluxo Completo da Sessão
+### Fluxo Completo da Sessão
 
 ```
 CLIENTE A                  SERVIDOR                 CLIENTE B
@@ -240,14 +240,14 @@ CLIENTE A                  SERVIDOR                 CLIENTE B
     │◄══════════════════════ GAME_OVER ══════════════════►│
 ```
 
-### 📨 Regras de Unicast e Broadcast
+### Regras de Unicast e Broadcast
 
 | Tipo de envio | Mensagens |
 |---------------|-----------|
 | **Unicast** (somente ao remetente) | `WELCOME`, `ACTION_RESULT`, `HINT`, `ERROR` |
 | **Broadcast** (todos os clientes) | `LOBBY_UPDATE`, `COUNTDOWN`, `GAME_START`, `ROOM_UPDATE`, `CHAT_BROADCAST`, `TIMER_UPDATE`, `PLAYER_EVENT`, `GAME_OVER` |
 
-### 🔌 Tratamento de Desconexão
+### Tratamento de Desconexão
 
 - **Durante WAITING_PLAYERS**: Remove o jogador, envia `PLAYER_EVENT` com `event: "left"` e `LOBBY_UPDATE` atualizado.
 - **Durante IN_GAME**: Envia `PLAYER_EVENT` com `event: "left"`. Se restar menos de 1 jogador, encerra com `GAME_OVER` e `result: "lose"`.
@@ -255,7 +255,7 @@ CLIENTE A                  SERVIDOR                 CLIENTE B
 
 ---
 
-## 📁 Estrutura do Projeto
+## Estrutura do Projeto
 
 ```
 escape-room/
@@ -297,45 +297,42 @@ escape-room/
 
 ---
 
-## 🏠 Salas e Enigmas
+## Salas e Enigmas
 
 O jogo possui **3 salas encadeadas**. A progressão exige colaboração entre os jogadores.
 
-### Sala 1 — Laboratório Abandonado 🧪
+### Sala 1 — Laboratório Abandonado 
 
 Sala inicial. Contém:
 
-- 🪑 **Mesa** - com itens para examinar
-- 🔒 **Cofre de 4 dígitos** - requer código numérico
-- 📋 **Quadro-negro** - com sequência numérica incompleta
-- 🗑️ **Lixeira** - com uma anotação importante
+- **Mesa** - com itens para examinar
+- **Cofre de 4 dígitos** - requer código numérico
+- **Quadro-negro** - com sequência numérica incompleta
+- **Lixeira** - com uma anotação importante
 
 **Objetivo**: Descobrir o código do cofre, obter a **chave azul** e destrancar a saída leste.
 
 ---
 
-### Sala 2 — Corredor 🚪
+### Sala 2 — Corredor 
 
 Acessível após resolver o laboratório. Contém:
 
-- 🖼️ **Fotografias** - com instruções
-- 📦 **Caixa de fusíveis** - com uma peça faltando
-- 🧶 **Tapete** - esconde a peça necessária
+- **Fotografias** - com instruções
+- **Caixa de fusíveis** - com uma peça faltando
+- **Tapete** - esconde a peça necessária
 
 **Objetivo**: Encontrar o fusível correto, encaixá-lo e destrancar a porta norte.
 
 ---
 
-### Sala 3 — Sala Final 🖥️
+### Sala 3 — Sala Final 
 
 Acessível após o corredor. Contém:
 
-- 💻 **Terminal de computador** - exige senha mestre
-- 📋 **Placa na parede** - com código codificado
-- 📖 **Diário aberto** - confirma a senha
+- **Terminal de computador** - exige senha mestre
+- **Placa na parede** - com código codificado
+- **Diário aberto** - confirma a senha
 
 **Objetivo**: Inserir a senha correta no terminal para abrir a saída principal e vencer.
 
-<div align="center">
-  <sub>Built with ❤️ for the Networks course</sub>
-</div>
