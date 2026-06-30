@@ -9,6 +9,7 @@ import time
 import argparse
 import uuid
 import sys
+import json
 
 from game.protocol import (
     State, ClientMsg,
@@ -53,8 +54,26 @@ class Server:
         server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_sock.bind((self.host, self.port))
         server_sock.listen(MAX_PLAYERS)
-        print(f"[ERP/1.0] Servidor rodando em {self.host}:{self.port}")
-        print(f"          Aguardando {MIN_PLAYERS}–{MAX_PLAYERS} jogadores...")
+
+        # ── Detecta IP local automaticamente ─────────────────────
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+        except Exception:
+            local_ip = "127.0.0.1"
+
+        print("╔══════════════════════════════════════════════════════╗")
+        print("║         ERP/1.0 — Escape Room Server                ║")
+        print("╠══════════════════════════════════════════════════════╣")
+        print(f"║  Porta : {self.port:<44}║")
+        print(f"║  IP    : {local_ip:<44}║")
+        print("║                                                      ║")
+        print(f"║  ► Compartilhe com os jogadores:                     ║")
+        print(f"║    python3 client.py --host {local_ip:<26}║")
+        print("╚══════════════════════════════════════════════════════╝")
+        print(f"  Aguardando {MIN_PLAYERS}–{MAX_PLAYERS} jogadores...\n")
 
         try:
             while True:
@@ -241,21 +260,33 @@ class Server:
         return max(tally, key=lambda k: tally[k])
 
     def _on_action(self, player_id: str, command: str):
-        if self.state != State.IN_GAME:
-            return
-        
-        responses = self.game_state.process_action(player_id, command)
-        conn = self.connections.get(player_id)
-        
-        if conn:
+        with self.lock:
+            if self.state != State.IN_GAME:
+                conn = self.connections.get(player_id)
+                if conn:
+                    self._send(conn, make_error(ErrorCode.NOT_IN_GAME, "O jogo não está em andamento."))
+                return
+
+            responses = self.game_state.process_action(player_id, command)
+            conn = self.connections.get(player_id)
+
+            BROADCAST_TYPES = {"ROOM_UPDATE", "PLAYER_EVENT"}
+
             for res in responses:
-                # CORREÇÃO: Se for uma atualização de sala ou evento, transmite para todos!
-                # O próprio cliente já filtra e ignora se não for a sala dele.
-                msg_str = res.decode("utf-8", errors="ignore")
-                if msg_str.startswith("ROOM_UPDATE") or msg_str.startswith("PLAYER_EVENT"):
-                    self._broadcast(res)
-                else:
-                    self._send(conn, res)
+                try:
+                    parsed = json.loads(res.decode("utf-8"))
+                    if parsed.get("type") in BROADCAST_TYPES:
+                        self._broadcast(res)
+                    else:
+                        if conn:
+                            self._send(conn, res)
+                except Exception:
+                    if conn:
+                        self._send(conn, res)
+
+            # ── Verifica condição de vitória ──────────────────────
+            if any(b'"__ESCAPED__"' in r for r in responses):
+                self._trigger_game_over("win")
 
     def _on_chat(self, player_id: str, message: str):
         with self.lock:
@@ -276,8 +307,12 @@ class Server:
         with self.lock:
             player = self.game_state.get_player(player_id)
             username = player.username if player else "?"
+            old_room = player.current_room if player else None
+            dropped_inventory = list(player.inventory) if player else []
+
             self.game_state.remove_player(player_id)
             self.connections.pop(player_id, None)
+            self._map_votes.pop(player_id, None)
             try:
                 conn.close()
             except OSError:
@@ -287,13 +322,17 @@ class Server:
             self._broadcast(make_player_event("left", username, f"{username} saiu da sala."))
 
             if self.state == State.WAITING_PLAYERS:
+                # Se alguém sai no lobby, redistribuímos os papéis restantes
+                # e limpamos ready/inventários para evitar iniciar sem role essencial.
+                self.game_state.reset(redistribute_roles=True)
                 players, ready_count = self.game_state.lobby_info()
                 self._broadcast(make_lobby_update(players, ready_count))
+                self._broadcast(self._make_map_vote_state())
 
             elif self.state == State.COUNTDOWN:
                 if len(self.connections) < MIN_PLAYERS or not self.game_state.all_ready():
                     self._cancel_countdown_locked(
-                        "A contagem foi cancelada porque não há jogadores suficientes para iniciar."
+                        "A contagem foi cancelada porque não há jogadores suficientes ou algum papel essencial ficou sem jogador."
                     )
 
             elif self.state == State.IN_GAME:
@@ -302,6 +341,35 @@ class Server:
                         "lose",
                         "💀 A partida foi encerrada porque restaram menos de 2 jogadores conectados."
                     )
+                elif not self.game_state.has_required_roles_connected():
+                    self._reset_match_after_role_loss_locked(
+                        "A partida foi reiniciada porque um dos caminhos essenciais ficou sem jogador. "
+                        "Os papéis foram redistribuídos entre os jogadores restantes."
+                    )
+                else:
+                    dropped = self.game_state.drop_items_in_room(old_room, dropped_inventory)
+                    if dropped:
+                        print(f"[DROP] {username} deixou itens em {old_room}: {', '.join(dropped)}")
+                    self._send_room_update_to_room(old_room)
+
+    def _reset_match_after_role_loss_locked(self, reason: str):
+        """Reinicia a partida quando um papel essencial fica sem jogador.
+
+        Deve ser chamado com self.lock já adquirido. A partida volta ao lobby,
+        o mapa é reiniciado e os jogadores restantes recebem novos papéis
+        essenciais para evitar softlock.
+        """
+        self.state = State.WAITING_PLAYERS
+        self._game_start_time = 0.0
+        self._map_votes.clear()
+
+        self.game_state.reset(redistribute_roles=True)
+
+        players, ready_count = self.game_state.lobby_info()
+        self._broadcast(make_player_event("match_reset", "Servidor", reason))
+        self._broadcast(make_lobby_update(players, ready_count))
+        self._broadcast(self._make_map_vote_state())
+        print(f"[RESET] {reason}")
 
     # ── Countdown e início de jogo ───────────────────────────────
 
@@ -314,8 +382,10 @@ class Server:
             return
 
         self.state = State.WAITING_PLAYERS
+        self.game_state.reset(redistribute_roles=True)
         players, ready_count = self.game_state.lobby_info()
         self._broadcast(make_lobby_update(players, ready_count))
+        self._broadcast(self._make_map_vote_state())
         self._broadcast(make_player_event("countdown_cancelled", "Servidor", reason))
         print(f"[COUNTDOWN] Cancelado: {reason}")
 
@@ -333,7 +403,7 @@ class Server:
 
                 if len(self.connections) < MIN_PLAYERS or not self.game_state.all_ready():
                     self._cancel_countdown_locked(
-                        "A contagem foi cancelada porque não há jogadores suficientes para iniciar."
+                        "A contagem foi cancelada porque não há jogadores suficientes ou algum papel essencial ficou sem jogador."
                     )
                     return
 
@@ -347,7 +417,7 @@ class Server:
 
             if len(self.connections) < MIN_PLAYERS or not self.game_state.all_ready():
                 self._cancel_countdown_locked(
-                    "A contagem foi cancelada porque não há jogadores suficientes para iniciar."
+                    "A contagem foi cancelada porque não há jogadores suficientes ou algum papel essencial ficou sem jogador."
                 )
                 return
 
@@ -418,7 +488,7 @@ class Server:
     def _schedule_reset(self):
         time.sleep(10)
         with self.lock:
-            self.game_state.reset()
+            self.game_state.reset(redistribute_roles=True)
             self._map_votes.clear()
             self.state = State.WAITING_PLAYERS
             players, ready_count = self.game_state.lobby_info()
@@ -437,6 +507,19 @@ class Server:
     def _broadcast(self, data: bytes):
         for conn in list(self.connections.values()):
             self._send(conn, data)
+
+    def _send_room_update_to_room(self, room_key: str):
+        """Envia ROOM_UPDATE personalizado aos jogadores que estão em uma sala.
+
+        Cada jogador recebe a atualização filtrada pelo próprio role, evitando
+        mostrar objetos de outro caminho quando a sala é compartilhada.
+        """
+        if not room_key:
+            return
+        for pid, pconn in list(self.connections.items()):
+            player = self.game_state.get_player(pid)
+            if player and player.current_room == room_key:
+                self._send(pconn, self.game_state.initial_room_update(room_key, player))
 
 
 # ── Entry point ──────────────────────────────────────────────────
