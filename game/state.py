@@ -73,18 +73,49 @@ class GameState:
         if map_key in MAPS:
             self._active_map_key = map_key
             self._reset_rooms()
+            # Se algum dia houver mapas com quantidade diferente de papéis,
+            # os roles precisam ser recalculados antes de reposicionar jogadores.
+            self.redistribute_roles()
             for player in self.players.values():
                 player.current_room = self.initial_room_for_player(player)
 
-    def reset(self):
+    def required_roles(self) -> list[int]:
+        """Retorna os papéis/caminhos essenciais do mapa ativo."""
+        initial_rooms = self._active_map().get("initial_rooms")
+        if not initial_rooms:
+            return [0]
+        return sorted(initial_rooms.keys())
+
+    def redistribute_roles(self):
+        """Redistribui os papéis entre os jogadores conectados.
+
+        Exemplo em mapa com roles [0, 1]:
+          2 jogadores -> 0, 1
+          3 jogadores -> 0, 1, 0
+          4 jogadores -> 0, 1, 0, 1
+        """
+        roles = self.required_roles()
+        for idx, player in enumerate(self.players.values()):
+            player.role = roles[idx % len(roles)]
+
+    def has_required_roles_connected(self) -> bool:
+        """Verifica se todos os papéis essenciais ainda têm ao menos um jogador."""
+        required = set(self.required_roles())
+        active = {self._effective_role(player) for player in self.players.values()}
+        return required.issubset(active)
+
+    def reset(self, redistribute_roles: bool = False):
         self._reset_rooms()
+        if redistribute_roles:
+            self.redistribute_roles()
         for player in self.players.values():
             player.inventory.clear()
             player.ready = False
             player.current_room = self.initial_room_for_player(player)
 
     def add_player(self, player_id: str, username: str) -> Player:
-        role = len(self.players)
+        roles = self.required_roles()
+        role = roles[len(self.players) % len(roles)]
         p = Player(player_id, username, role)
         p.current_room = self.initial_room_for_player(p)
         self.players[player_id] = p
@@ -92,6 +123,47 @@ class GameState:
 
     def remove_player(self, player_id: str):
         self.players.pop(player_id, None)
+
+    def drop_items_in_room(self, room_key: str, item_keys: list[str]) -> list[str]:
+        """Devolve ao mapa os itens que estavam no inventário de um jogador.
+
+        Usado quando um jogador desconecta durante IN_GAME, mas a partida
+        continua. Os itens ficam "no chão" da sala onde ele caiu, para que
+        outro jogador do mesmo caminho possa pegá-los sem refazer puzzles.
+        """
+        if not room_key or room_key not in self.room_states:
+            return []
+
+        room = self.room_states[room_key]
+        dropped: list[str] = []
+
+        for item_key in item_keys:
+            if not item_key:
+                continue
+
+            if item_key in room["objects"]:
+                obj = room["objects"][item_key]
+            else:
+                obj = self._original_object_definition(item_key)
+                room["objects"][item_key] = obj
+
+            obj["hidden"] = False
+            obj["takeable"] = True
+            dropped.append(item_key)
+
+        return dropped
+
+    def _original_object_definition(self, item_key: str) -> dict:
+        for room in self._active_rooms().values():
+            obj = room.get("objects", {}).get(item_key)
+            if obj is not None:
+                return copy.deepcopy(obj)
+
+        return {
+            "description": f"Item deixado por um jogador desconectado: {item_key}.",
+            "takeable": True,
+            "hidden": False,
+        }
 
     def get_player(self, player_id: str) -> Player | None:
         return self.players.get(player_id)
@@ -105,7 +177,10 @@ class GameState:
         return players, ready_count
 
     def all_ready(self) -> bool:
-        if len(self.players) < 2: return False
+        if len(self.players) < 2:
+            return False
+        if not self.has_required_roles_connected():
+            return False
         return all(p.ready for p in self.players.values())
 
     def process_action(self, player_id: str, command: str) -> list[bytes]:
@@ -178,6 +253,7 @@ class GameState:
         item_key = self._resolve_inventory_item(player, item_name)
         if not item_key: return [make_action_result(False, f"Você não tem '{item_name}'.", False)]
 
+        target_name = self._resolve_contextual_target(player, target_name)
         room = self.room_states[player.current_room]
         target_key, target = self._find_object(room, target_name, player)
         if not target: return [make_action_result(False, f"Não há '{target_name}' aqui.", False)]
@@ -216,6 +292,7 @@ class GameState:
         return responses
 
     def _cmd_colocar(self, player: Player, valor: str, target_name: str) -> list[bytes]:
+        target_name = self._resolve_contextual_target(player, target_name)
         room = self.room_states[player.current_room]
         target_key, target = self._find_object(room, target_name, player)
         if not target: return [make_action_result(False, f"Não há '{target_name}' aqui.", False)]
@@ -329,14 +406,51 @@ class GameState:
         return [make_hint(hints[idx])]
 
     def _effective_role(self, player: Player) -> int:
-        total = len(self.players)
-        return player.role % total if total > 0 else player.role
+        roles = self.required_roles()
+        return roles[player.role % len(roles)]
 
     def _can_see_object(self, obj: dict, player: Player) -> bool:
         role = obj.get("assigned_to_role")
         if role is None: return True
-        total = len(self.players)
-        return self._effective_role(player) == (role % total if total > 0 else role)
+        return self._effective_role(player) == role
+
+    def _resolve_contextual_target(self, player: Player, target_name: str) -> str:
+        """Resolve alvos genéricos dependentes da sala.
+
+        Exemplo: se o jogador digitar "colocar 8520 na porta" na recepção,
+        o jogo entende que a "porta" é a porta_leste, porque é a única
+        porta interativa visível naquela sala.
+        """
+        if self._normalize_text(target_name) != "porta":
+            return target_name
+
+        room = self.room_states[player.current_room]
+
+        def visible_porta_candidates(require_use_with: bool) -> list[str]:
+            candidates = []
+            for key, obj in room["objects"].items():
+                if obj.get("hidden", False):
+                    continue
+                if not key.startswith("porta"):
+                    continue
+                if not self._can_see_object(obj, player):
+                    continue
+                if require_use_with and not obj.get("use_with"):
+                    continue
+                candidates.append(key)
+            return candidates
+
+        # Para comandos do tipo "colocar senha na porta", prioriza portas com use_with.
+        candidates = visible_porta_candidates(require_use_with=True)
+        if len(candidates) == 1:
+            return candidates[0]
+
+        # Fallback: se só existir uma porta visível na sala, usa ela.
+        candidates = visible_porta_candidates(require_use_with=False)
+        if len(candidates) == 1:
+            return candidates[0]
+
+        return target_name
 
     def _normalize_text(self, text: str) -> str:
         text = str(text).strip().lower()

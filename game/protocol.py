@@ -13,7 +13,7 @@ MIN_PLAYERS = 2
 MAX_PLAYERS = 4
 COUNTDOWN_SECONDS = 10
 GAME_TIME_LIMIT = 1800        # 30 minutos em segundos
-TIMER_BROADCAST_INTERVAL = 600 # broadcast a cada 30 s
+TIMER_BROADCAST_INTERVAL = 120 # broadcast a cada 2 minutos
 CRITICAL_TIME_MARKS = {300, 60, 30, 10}  # alertas extras nesses segundos
 
 # ── Estados do servidor ──────────────────────────────────────────
@@ -27,7 +27,7 @@ class State:
 class ClientMsg:
     JOIN       = "JOIN"
     READY      = "READY"
-    MAP_VOTE   = "MAP_VOTE"    # payload: {"map": "hospital"|"museu"}
+    MAP_VOTE   = "MAP_VOTE"    # payload: {"map": "hospital"}
     ACTION     = "ACTION"
     CHAT       = "CHAT"
     DISCONNECT = "DISCONNECT"
@@ -81,7 +81,7 @@ def decode(raw: str) -> tuple[str, dict]:
 # ─────────────────────────────────────────────────────────────────
 
 def make_map_vote_state(votes: dict, maps: dict) -> bytes:
-    """votes: {"hospital": N, "museu": N}  maps: {"hospital": "🏥 Hospital Abandonado", ...}"""
+    """votes: {"hospital": N}  maps: {"hospital": "🏥 Hospital Abandonado", ...}"""
     return encode(ServerMsg.MAP_VOTE_STATE, {"votes": votes, "maps": maps})
 
 def make_map_selected(map_key: str, map_name: str) -> bytes:
@@ -134,7 +134,7 @@ def make_timer_update(remaining: int) -> bytes:
     return encode(ServerMsg.TIMER_UPDATE, {"remaining": remaining})
 
 def make_player_event(event: str, player: str, detail: str = "") -> bytes:
-    """event: 'joined' | 'left' | 'moved' | 'found' | 'solved'"""
+    """event: 'joined' | 'left' | 'moved' | 'solved' | 'match_reset' | 'countdown_cancelled'"""
     return encode(ServerMsg.PLAYER_EVENT, {
         "event": event,
         "player": player,

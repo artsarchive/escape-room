@@ -39,7 +39,7 @@ MAPS: dict = {
             "ala_medica": {
                 "description": "Uma ala cheia de macas enferrujadas.\nA PORTA LESTE leva ao Corredor Central (Saída).\nHá um COFRE MÉDICO encravado na parede e um PRONTUÁRIO na cama.",
                 "objects": {
-                    "prontuario": {"description": "Anotação rabiscada: 'A senha das ferramentas do zelador no subsolo é 1234'.", "takeable": False, "hidden": False, "assigned_to_role": 0},
+                    "prontuario": {"description": "Anotação rabiscada: 'A senha das ferramentas do zelador no subsolo é 1234'.", "takeable": False, "hidden": False},
                     "cofre_medico": {
                         "description": "Cofre pesado (colocar <codigo> no cofre).", "takeable": False, "hidden": False,
                         "use_with": {"item": "9999", "result_msg": "O cofre estala e abre. Dentro está a CHAVE ESQUERDA!", "unlocks": "chave_esquerda"}
@@ -98,11 +98,20 @@ MAPS: dict = {
             "corredor_central": {
                 "description": "O vasto Corredor Central do hospital.\nÀ frente está a imponente SAÍDA PRINCIPAL. O painel exige as duas chaves físicas operadas simultaneamente.",
                 "objects": {
-                    "dispositivo_esquerdo": {"description": "Painel esquerdo.", "takeable": False, "use_with": {"item": "chave_esquerda", "result_msg": "Chave L travada na posição!", "unlocks": "saida_norte"}},
-                    "dispositivo_direito": {"description": "Painel direito.", "takeable": False, "use_with": {"item": "chave_direita", "result_msg": "Chave R travada na posição!", "unlocks": "saida_norte"}},
+                    "dispositivo_esquerdo": {"description": "Painel esquerdo. Use sua chave aqui.", "takeable": False, "use_with": {"item": "chave_esquerda", "result_msg": "Chave L travada na posição!", "unlocks": "saida_norte"}},
+                    "dispositivo_direito": {"description": "Painel direito. Use sua chave aqui.", "takeable": False, "use_with": {"item": "chave_direita", "result_msg": "Chave R travada na posição!", "unlocks": "saida_norte"}},
                     "porta_saida": {"description": "Porta de aço dupla trancada.", "takeable": False}
                 },
-                "exits": {"norte": {"room": "__ESCAPE__", "locked": True, "locked_msg": "A porta não cede. Usem as chaves nos dispositivos."}}
+                "exits": {
+                    "norte": {"room": "__ESCAPE__", "locked": True,  "locked_msg": "A porta não cede. Usem as chaves nos dispositivos."},
+                    "oeste": {"room": "ala_medica",  "locked": False, "locked_msg": ""},
+                    "sul":   {"room": "subsolo",     "locked": False, "locked_msg": ""}
+                },
+                "hints": [
+                    "Cada jogador precisa usar sua chave no dispositivo correspondente desta sala.",
+                    "P1 usa chave_esquerda no dispositivo_esquerdo. P2 usa chave_direita no dispositivo_direito.",
+                    "Ambos precisam girar as chaves. Depois é só ir norte para escapar!"
+                ]
             }
         }
     }

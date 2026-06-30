@@ -1,338 +1,281 @@
-# Escape Room — Jogo Cooperativo Cliente-Servidor
+# Escape Room — ERP/1.0
 
-[![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://python.org)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-desenvolvimento-yellow.svg)]()
+Projeto final de Redes de Computadores I: jogo cooperativo de Escape Room em terminal, usando arquitetura cliente-servidor e comunicação via sockets TCP.
 
-Sistema de jogo cooperativo multiplayer implementado em arquitetura cliente-servidor, executado via interface de linha de comando (CLI). Desenvolvido como projeto prático da disciplina de Redes de Computadores.
+## 1. Propósito da aplicação
 
----
+A aplicação simula um Escape Room cooperativo em rede local. Entre 2 e 4 jogadores entram na mesma partida, recebem papéis/caminhos dentro do mapa e precisam trocar informações pelo chat para resolver enigmas e escapar dentro do tempo limite.
 
-## Índice
+O servidor mantém o estado global do jogo: jogadores, salas, objetos, senhas, portas, eventos, tempo e condição de vitória/derrota. Os clientes enviam comandos e recebem atualizações do servidor.
 
-- [Sobre o Projeto](#-sobre-o-projeto)
-- [Motivação pela Escolha do TCP](#-motivação-pela-escolha-do-tcp)
-- [Requisitos Mínimos](#-requisitos-mínimos)
-- [Como Executar](#-como-executar)
-- [Protocolo de Aplicação — ERP/1.0](#-protocolo-de-aplicação--erp10)
-- [Estrutura do Projeto](#-estrutura-do-projeto)
-- [Comandos do Jogo](#-comandos-do-jogo)
-- [Salas e Enigmas](#-salas-e-enigmas)
-- [Contribuindo](#-contribuindo)
-- [Licença](#-licença)
+## 2. Requisitos
 
----
+- Python 3.10 ou superior.
+- Computadores na mesma rede local, caso a partida seja jogada em máquinas diferentes.
+- Terminal/console para executar o servidor e os clientes.
 
-## Sobre o Projeto
+## 3. Arquivos principais
 
-O sistema é um jogo de **Escape Room cooperativo** onde **2 a 4 jogadores** conectados simultaneamente em rede local colaboram para resolver enigmas, compartilhar pistas e executar ações coordenadas com o objetivo de escapar de uma sala virtual dentro de um limite de tempo.
+- `server.py`: servidor TCP do jogo.
+- `client.py`: cliente em terminal.
+- `launcher.py`: menu para criar ou entrar em partida com descoberta automática na rede local.
+- `game/protocol.py`: tipos de mensagens, formato do protocolo e constantes do jogo.
+- `game/state.py`: lógica de estado, comandos, inventário, salas e enigmas.
+- `game/rooms.py`: definição do mapa Hospital Abandonado.
 
-A aplicação é executada inteiramente via terminal, sem dependências externas além da biblioteca padrão do Python. A comunicação entre os jogadores é mediada exclusivamente pelo servidor, que centraliza todo o estado do jogo e propaga eventos em tempo real para todos os clientes conectados.
+## 4. Forma recomendada de rodar: launcher
 
-### Objetivos Educacionais
+A forma mais simples para apresentação é usar o `launcher.py`.
 
-- Implementação de sockets TCP em Python
-- Desenvolvimento de protocolo de camada de aplicação
-- Gerenciamento de estados em sistemas distribuídos
-- Comunicação concorrente com múltiplos clientes via threads
+### Criar partida
 
----
-
-## Motivação pela Escolha do TCP
-
-O protocolo de transporte utilizado é o **TCP (Transmission Control Protocol)**. A escolha se justifica por:
-
-| Característica | Benefício para o Jogo |
-|----------------|----------------------|
-| **Entrega garantida** | Cada ação altera o estado persistente. Uma mensagem perdida tornaria o estado inconsistente. |
-| **Ordem garantida** | Ações dependem umas das outras sequencialmente. Executar B antes de A pode invalidar a jogada. |
-| **Sem perdas aceitáveis** | Diferente de mídia em tempo real, cada mensagem carrega uma mutação irreversível de estado. |
-| **Conexões de longa duração** | Gerencia naturalmente sessões persistentes durante toda a partida. |
-| **Simplicidade** | Uso de `readline()` com delimitador `\n` simplifica a separação de mensagens. |
-
----
-
-## Requisitos Mínimos
-
-### Servidor
-
-- Python 3.8 ou superior
-- Módulos: `socket`, `threading`, `json`, `uuid`, `time` (todos da biblioteca padrão)
-- Porta TCP 5000 disponível (configurável via `--port`)
-
-### Cliente
-
-- Python 3.8 ou superior
-- Acesso à rede local (LAN) ou localhost
-- Terminal com suporte a UTF-8
-- Nenhuma biblioteca externa necessária
-
-### Limites da Sessão
-
-| Parâmetro | Valor |
-|-----------|-------|
-| Mínimo de jogadores | 2 |
-| Máximo de jogadores | 4 |
-| Tempo limite da partida | 30 minutos |
-| Contagem regressiva antes do início | 10 segundos |
-| Intervalo de atualização do timer | 30 segundos |
-
----
-
-## Como Executar
-
-### 1. Clone o repositório
+No computador que será o host:
 
 ```bash
-git clone https://github.com/seu-usuario/escape-room.git
-cd escape-room
+python3 launcher.py
 ```
 
-### 2. Inicie o servidor
+Escolha:
+
+```text
+1. Criar partida
+```
+
+Esse computador vai iniciar o servidor e também entrar como jogador local.
+
+Além disso, o `launcher.py` começa a transmitir automaticamente a presença do servidor na rede local usando UDP broadcast. Assim, os outros jogadores podem entrar sem digitar o IP manualmente.
+
+### Entrar em partida
+
+Nos computadores dos outros jogadores:
 
 ```bash
-python server.py
+python3 launcher.py
 ```
 
-**Com parâmetros personalizados:**
+Escolha:
+
+```text
+2. Entrar em partida
+```
+
+O launcher tentará encontrar automaticamente o servidor na rede. Se encontrar, conecta sozinho. Se não encontrar, ele pedirá o IP manualmente.
+
+## 5. Forma manual de rodar
+
+Também é possível rodar sem launcher.
+
+No computador servidor:
 
 ```bash
-python server.py --host 0.0.0.0 --port 5000
+python3 server.py
 ```
 
-### 3. Conecte os clientes
-
-Em terminais separados para cada jogador:
+Nos computadores clientes:
 
 ```bash
-python client.py
+python3 client.py --host IP_DO_SERVIDOR
 ```
 
-**Conectando a um servidor remoto:**
+Exemplo:
 
 ```bash
-python client.py --host 192.168.1.10 --port 5000
+python3 client.py --host 192.168.0.10
 ```
 
-> **Nota:** Cada cliente solicitará um nome de usuário ao iniciar. Após todos os jogadores conectados digitarem `READY`, uma contagem regressiva de 10 segundos é iniciada e o jogo começa.
+Se estiver testando tudo no mesmo computador, use:
 
----
+```bash
+python3 client.py --host 127.0.0.1
+```
 
-## Protocolo de Aplicação — ERP/1.0
+## 6. Quantidade de jogadores
 
-O **ERP (Escape Room Protocol)** versão 1.0 define o formato de todas as mensagens trocadas entre clientes e servidor.
+A partida aceita de 2 a 4 jogadores.
 
-### Formato das Mensagens
+O mapa atual tem dois papéis/caminhos essenciais:
 
-Todas as mensagens são objetos **JSON serializados**, seguidos do caractere delimitador `\n` (newline).
+- `role 0`: caminho da recepção.
+- `role 1`: caminho da sala de força.
+
+Os jogadores são distribuídos entre esses papéis. Com 2 jogadores, cada um fica em um caminho. Com 3 ou 4 jogadores, os papéis são alternados:
+
+```text
+2 jogadores: role 0, role 1
+3 jogadores: role 0, role 1, role 0
+4 jogadores: role 0, role 1, role 0, role 1
+```
+
+## 7. Regra de desconexão, validação e redistribuição de papéis
+
+O mapa Hospital Abandonado possui dois papéis essenciais: `role 0` e `role 1`. Por isso, não basta ter 2 jogadores conectados: a partida só pode começar ou continuar se todos os papéis essenciais estiverem preenchidos.
+
+Se um jogador sair antes da partida começar, o servidor redistribui os papéis entre os jogadores restantes, limpa o estado de pronto (`ready`) e atualiza o lobby. Isso impede que dois jogadores fiquem, por exemplo, apenas no `role 0`.
+
+Se um jogador sair durante a contagem regressiva e a partida deixar de ter jogadores suficientes ou algum papel essencial ficar sem jogador, o COUNTDOWN é cancelado. O mapa é resetado, os papéis são redistribuídos, todos voltam para o lobby e precisam enviar `ready` novamente.
+
+Se um jogador cair durante a partida e restarem menos de 2 jogadores, o jogo termina com derrota.
+
+Se ainda restarem pelo menos 2 jogadores, mas algum papel essencial ficar sem jogador, a partida é reiniciada automaticamente. Nesse caso:
+
+- o estado do mapa é resetado;
+- inventários são limpos;
+- os jogadores restantes voltam para o lobby;
+- os papéis essenciais são redistribuídos entre os jogadores restantes;
+- todos precisam enviar `ready` novamente.
+
+Se o jogador sair durante a partida e o jogo puder continuar, os itens que estavam no inventário dele são devolvidos para a sala onde ele estava. Assim, outro jogador do mesmo caminho pode pegar esses itens sem precisar refazer os puzzles que já tinham sido resolvidos. O servidor também envia `ROOM_UPDATE` para os jogadores que continuaram naquela sala, atualizando a lista de jogadores presentes e os objetos disponíveis.
+
+Após um `GAME_OVER`, o reset automático também redistribui os papéis dos jogadores que continuarem conectados.
+
+Essa regra evita softlock, ou seja, evita que o jogo continue rodando ou comece sem alguém em um caminho obrigatório, e também evita que um item essencial desapareça com um jogador desconectado.
+
+## 8. Comandos do cliente
+
+### Comandos gerais
+
+```text
+ready
+sair
+chat <mensagem>
+votar hospital
+olhar
+sala
+inventario
+dica
+```
+
+### Comandos de ação
+
+```text
+examinar <objeto>
+pegar <objeto>
+usar <item> em <objeto>
+colocar <senha> no <objeto>
+ir <direção>
+```
+
+Direções aceitas:
+
+```text
+norte
+sul
+leste
+oeste
+```
+
+## 9. Alias contextual para porta
+
+Algumas salas possuem uma única porta interativa. Por isso, o jogo aceita o alvo genérico `porta` quando for possível identificar a porta correta pelo contexto da sala.
+
+Exemplos que funcionam:
+
+```text
+colocar 8520 na porta
+colocar 1968 na porta
+```
+
+Na recepção, `porta` é entendida como `porta_leste`.
+
+Na sala de força, `porta` é entendida como `porta_sul`.
+
+Também continuam funcionando os comandos específicos:
+
+```text
+colocar 8520 na porta_leste
+colocar 1968 na porta_sul
+```
+
+## 10. Colaboração entre jogadores
+
+O jogo não envia evento geral toda vez que alguém encontra um objeto físico escondido. Quando um jogador descobre uma informação ou encontra um item, ele deve avisar os outros pelo chat.
+
+Exemplo:
+
+```text
+chat Achei a senha do cofre: 9999
+```
+
+Alguns eventos cooperativos importantes ainda são enviados automaticamente pelo servidor, como energia religada, portas liberadas remotamente e reencontro dos jogadores.
+
+## 11. Mapa atual: Hospital Abandonado
+
+O mapa possui dois caminhos principais.
+
+### Caminho da recepção
+
+- Recepção.
+- Consultório.
+- Ala médica.
+- Corredor central.
+
+### Caminho da sala de força
+
+- Sala de força.
+- Almoxarifado.
+- Subsolo.
+- Corredor central.
+
+Os caminhos dependem um do outro. Um jogador encontra pistas que o outro precisa usar, por isso o chat é parte essencial da cooperação.
+
+## 12. Fluxo resumido da partida
+
+1. O servidor é iniciado.
+2. Os clientes entram na partida.
+3. Os jogadores podem votar no mapa com `votar hospital`.
+4. Todos digitam `ready`.
+5. O servidor inicia o COUNTDOWN.
+6. A partida começa.
+7. Cada jogador recebe sua sala inicial de acordo com o papel.
+8. Os jogadores resolvem enigmas e trocam informações pelo chat.
+9. Os caminhos se encontram no corredor central.
+10. A saída final exige as duas chaves.
+11. Ao escapar, o servidor envia GAME_OVER com vitória.
+
+## 13. Protocolo de aplicação
+
+O protocolo ERP/1.0 usa mensagens JSON finalizadas por quebra de linha (`\n`).
+
+Exemplo geral:
 
 ```json
-{"type": "TIPO_DA_MENSAGEM", "payload": { ... }}\n
+{
+  "type": "ACTION",
+  "payload": {
+    "command": "examinar mesa"
+  }
+}
 ```
 
-- `type`: identifica o tipo da mensagem
-- `payload`: dados específicos de cada tipo (ambos obrigatórios)
+Principais mensagens cliente → servidor:
 
-### Estados do Servidor
+- `JOIN`
+- `READY`
+- `MAP_VOTE`
+- `ACTION`
+- `CHAT`
+- `DISCONNECT`
 
-```
-WAITING_PLAYERS → COUNTDOWN → IN_GAME → GAME_OVER
-        ↑                                    │
-        └────────────── reset (10s) ─────────┘
-```
+Principais mensagens servidor → cliente:
 
-| Estado | Descrição |
-|--------|-----------|
-| **WAITING_PLAYERS** | Lobby aberto. Aceita JOIN e READY. Aguarda mínimo de 2 jogadores prontos. |
-| **COUNTDOWN** | Início iminente. Envia contagem regressiva por 10 segundos. Não aceita novos JOINs. |
-| **IN_GAME** | Partida ativa. Aceita ACTION e CHAT. Timer em execução. |
-| **GAME_OVER** | Partida encerrada. Após 10 segundos, reseta para WAITING_PLAYERS. |
+- `WELCOME`
+- `LOBBY_UPDATE`
+- `MAP_VOTE_STATE`
+- `MAP_SELECTED`
+- `COUNTDOWN`
+- `GAME_START`
+- `ACTION_RESULT`
+- `ROOM_UPDATE`
+- `PLAYER_EVENT`
+- `CHAT_BROADCAST`
+- `TIMER_UPDATE`
+- `HINT`
+- `GAME_OVER`
+- `ERROR`
 
-### Mensagens: Cliente → Servidor
+## 14. Observações para apresentação
 
-| Tipo | Payload | Quando usar |
-|------|---------|-------------|
-| `JOIN` | `{"username": "nome"}` | Primeira mensagem ao conectar. |
-| `READY` | `{}` | Sinaliza que está pronto no lobby. |
-| `ACTION` | `{"command": "examinar mesa"}` | Ação no jogo. Válido apenas em IN_GAME. |
-| `CHAT` | `{"message": "texto livre"}` | Mensagem para todos. Válido em IN_GAME. |
-| `DISCONNECT` | `{}` | Saída voluntária. |
-
-**Exemplos:**
-
-```json
-{"type": "JOIN", "payload": {"username": "Lucas"}}\n
-{"type": "ACTION", "payload": {"command": "examinar cofre"}}\n
-{"type": "CHAT", "payload": {"message": "Achei a chave!"}}\n
-```
-
-### Mensagens: Servidor → Cliente
-
-| Tipo | Payload principal | Tipo de Envio |
-|------|-------------------|---------------|
-| `WELCOME` | `{player_id, server_state}` | **Unicast** |
-| `LOBBY_UPDATE` | `{players[], ready_count, total}` | **Broadcast** |
-| `COUNTDOWN` | `{seconds: N}` | **Broadcast** |
-| `GAME_START` | `{room, description, time_limit}` | **Broadcast** |
-| `ACTION_RESULT` | `{success, message, state_changed}` | **Unicast** |
-| `ROOM_UPDATE` | `{room_state{}, objects[], players_here[]}` | **Broadcast** |
-| `CHAT_BROADCAST` | `{from, message}` | **Broadcast** |
-| `TIMER_UPDATE` | `{remaining: N}` | **Broadcast** |
-| `PLAYER_EVENT` | `{event, player, detail}` | **Broadcast** |
-| `HINT` | `{text}` | **Unicast** |
-| `GAME_OVER` | `{result, time_elapsed, message}` | **Broadcast** |
-| `ERROR` | `{code, message}` | **Unicast** |
-
-**Exemplos:**
-
-```json
-{"type": "WELCOME", "payload": {"player_id": "a3f1b2c4", "server_state": "WAITING_PLAYERS"}}\n
-{"type": "ACTION_RESULT", "payload": {"success": true, "message": "Você encontrou uma chave vermelha!", "state_changed": true}}\n
-{"type": "GAME_OVER", "payload": {"result": "win", "time_elapsed": 923, "message": "Vocês escaparam em 15m 23s!"}}\n
-```
-
-### Códigos de Erro
-
-| Código | Situação |
-|--------|----------|
-| `NAME_TAKEN` | O username já está em uso na sessão atual. |
-| `GAME_FULL` | Já existem 4 jogadores conectados (limite máximo). |
-| `GAME_IN_PROGRESS` | Tentativa de JOIN enquanto o estado é IN_GAME. |
-| `INVALID_ACTION` | Comando malformado ou ação fora de contexto. |
-| `NOT_IN_GAME` | Mensagem enviada fora do estado IN_GAME. |
-
-**Exemplo:**
-
-```json
-{"type": "ERROR", "payload": {"code": "NAME_TAKEN", "message": "O nome 'Lucas' já está em uso. Escolha outro username."}}\n
-```
-
-### Fluxo Completo da Sessão
-
-```
-CLIENTE A                  SERVIDOR                 CLIENTE B
-    │                          │                         │
-    │──── JOIN ───────────────►│                         │
-    │◄─── WELCOME ────────────│                         │
-    │◄─── LOBBY_UPDATE ───────│                         │
-    │                          │◄────────── JOIN ────────│
-    │◄─── LOBBY_UPDATE ───────│──── WELCOME ───────────►│
-    │                          │──── LOBBY_UPDATE ──────►│
-    │                          │                         │
-    │──── READY ──────────────►│                         │
-    │                          │◄────────── READY ───────│
-    │◄─── LOBBY_UPDATE ───────│──── LOBBY_UPDATE ──────►│
-    │                          │                         │
-    │◄─── COUNTDOWN(10) ──────│──── COUNTDOWN(10) ─────►│
-    │◄─── COUNTDOWN(9)  ──────│──── COUNTDOWN(9)  ─────►│
-    │          ...             │          ...             │
-    │◄─── GAME_START ─────────│──── GAME_START ─────────►│
-    │                          │                         │
-    │──── ACTION("examinar mesa") ───────────────────────►│
-    │◄─── ACTION_RESULT ──────│                         │
-    │◄─── ROOM_UPDATE ────────│──── ROOM_UPDATE ────────►│
-    │                          │                         │
-    │──── CHAT("Achei algo!") ─────────────────────────►│
-    │◄─── CHAT_BROADCAST ─────│──── CHAT_BROADCAST ─────►│
-    │                          │                         │
-    │◄─── TIMER_UPDATE(1745) ─│──── TIMER_UPDATE(1745) ►│
-    │                          │                         │
-    │◄══════════════════════ GAME_OVER ══════════════════►│
-```
-
-### Regras de Unicast e Broadcast
-
-| Tipo de envio | Mensagens |
-|---------------|-----------|
-| **Unicast** (somente ao remetente) | `WELCOME`, `ACTION_RESULT`, `HINT`, `ERROR` |
-| **Broadcast** (todos os clientes) | `LOBBY_UPDATE`, `COUNTDOWN`, `GAME_START`, `ROOM_UPDATE`, `CHAT_BROADCAST`, `TIMER_UPDATE`, `PLAYER_EVENT`, `GAME_OVER` |
-
-### Tratamento de Desconexão
-
-- **Durante WAITING_PLAYERS**: Remove o jogador, envia `PLAYER_EVENT` com `event: "left"` e `LOBBY_UPDATE` atualizado.
-- **Durante IN_GAME**: Envia `PLAYER_EVENT` com `event: "left"`. Se restar menos de 1 jogador, encerra com `GAME_OVER` e `result: "lose"`.
-- **Desconexão abrupta**: Detectada via exceção no `recv()` — tratada de forma idêntica à desconexão voluntária.
-
----
-
-## Estrutura do Projeto
-
-```
-escape-room/
-├── server.py              # Servidor TCP principal
-├── client.py              # Cliente CLI
-├── game/
-│   ├── __init__.py
-│   ├── protocol.py        # Constantes e serialização do ERP/1.0
-│   ├── rooms.py           # Definição das salas, objetos e enigmas
-│   └── state.py           # Gerenciamento de estado da partida
-└── README.md
-```
-
-### Módulos
-
-| Arquivo | Responsabilidade |
-|---------|------------------|
-| `game/protocol.py` | Constantes do protocolo, funções encode/decode, builders de mensagens |
-| `game/rooms.py` | 3 salas com objetos, descrições, enigmas encadeados e dicas progressivas |
-| `game/state.py` | Processa comandos, aplica efeitos no estado e detecta condição de vitória |
-| `server.py` | Aceita conexões, cria threads, protege estado compartilhado, gerencia ciclo da partida |
-| `client.py` | Conecta ao servidor, thread dedicada para receber mensagens enquanto digita comandos |
-
----
-
-## 🎮 Comandos do Jogo
-
-| Comando | Exemplo | Descrição |
-|---------|---------|-----------|
-| `examinar <objeto>` | `examinar mesa` | Descreve o objeto em detalhe. Pode revelar objetos ocultos. |
-| `pegar <objeto>` | `pegar chave_vermelha` | Adiciona o objeto ao inventário do jogador. |
-| `usar <item> em <objeto>` | `usar chave_azul em porta_leste` | Combina um item do inventário com um objeto da sala. |
-| `ir <direção>` | `ir leste` | Move para a sala adjacente (norte, sul, leste, oeste). |
-| `inventario` | `inventario` | Lista os itens que o jogador carrega. |
-| `dica` | `dica` | Solicita a próxima dica para a sala atual (progressiva). |
-| `chat <mensagem>` | `chat Achei a chave!` | Envia mensagem para todos os jogadores. |
-| `READY` | `READY` | No lobby: sinaliza que está pronto para iniciar. |
-| `sair` | `sair` | Desconecta voluntariamente do servidor. |
-
----
-
-## Salas e Enigmas
-
-O jogo possui **3 salas encadeadas**. A progressão exige colaboração entre os jogadores.
-
-### Sala 1 — Laboratório Abandonado 
-
-Sala inicial. Contém:
-
-- **Mesa** - com itens para examinar
-- **Cofre de 4 dígitos** - requer código numérico
-- **Quadro-negro** - com sequência numérica incompleta
-- **Lixeira** - com uma anotação importante
-
-**Objetivo**: Descobrir o código do cofre, obter a **chave azul** e destrancar a saída leste.
-
----
-
-### Sala 2 — Corredor 
-
-Acessível após resolver o laboratório. Contém:
-
-- **Fotografias** - com instruções
-- **Caixa de fusíveis** - com uma peça faltando
-- **Tapete** - esconde a peça necessária
-
-**Objetivo**: Encontrar o fusível correto, encaixá-lo e destrancar a porta norte.
-
----
-
-### Sala 3 — Sala Final 
-
-Acessível após o corredor. Contém:
-
-- **Terminal de computador** - exige senha mestre
-- **Placa na parede** - com código codificado
-- **Diário aberto** - confirma a senha
-
-**Objetivo**: Inserir a senha correta no terminal para abrir a saída principal e vencer.
-
+- Rodar pelo `launcher.py` facilita a conexão em rede local.
+- Caso a descoberta automática não funcione, usar o modo manual informando o IP do servidor.
+- O jogo depende de comunicação via chat: se alguém achar uma senha ou pista, precisa avisar os outros jogadores.
+- Se um jogador essencial cair, a partida é reiniciada e os papéis são redistribuídos para impedir que o jogo fique impossível de concluir.
