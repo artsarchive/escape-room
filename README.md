@@ -89,6 +89,12 @@ Se estiver testando tudo no mesmo computador, use:
 python3 client.py --host 127.0.0.1
 ```
 
+## 5.1. Escolha de nome do jogador
+
+Ao abrir o cliente, o jogador informa um nome de usuário. Se esse nome já estiver sendo usado por outro jogador conectado, o servidor responde com `ERROR [NAME_TAKEN]` e o cliente pede outro nome automaticamente.
+
+Nesse caso, não é necessário fechar e abrir o cliente de novo. Basta digitar um novo nome quando o cliente solicitar. O loop normal de comandos só é liberado depois que o servidor confirma a entrada com `WELCOME`.
+
 ## 6. Quantidade de jogadores
 
 A partida aceita de 2 a 4 jogadores.
