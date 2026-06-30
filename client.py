@@ -10,7 +10,7 @@ import argparse
 import readline
 
 from game.protocol import (
-    ServerMsg, decode,
+    ServerMsg, ErrorCode, decode,
     make_join, make_ready, make_action, make_chat, make_disconnect, make_map_vote,
 )
 
@@ -186,6 +186,66 @@ def render(msg_type: str, payload: dict):
         print_msg(f"⚠️  ERRO [{code}]: {msg}")
 
 
+# ── Entrada no jogo / JOIN ───────────────────────────────────────
+
+def _recv_line_blocking(sock: socket.socket) -> str:
+    """Lê exatamente uma mensagem JSON terminada por \n sem consumir mensagens seguintes."""
+    buf = b""
+    while b"\n" not in buf:
+        data = sock.recv(1)
+        if not data:
+            raise ConnectionError("Servidor encerrou a conexão antes do JOIN ser concluído.")
+        buf += data
+    return buf.decode("utf-8", errors="replace").strip()
+
+
+def join_handshake(sock: socket.socket) -> str:
+    """Pede nome até o servidor aceitar o JOIN com WELCOME.
+
+    Se o nome já estiver em uso, o servidor responde ERROR/NAME_TAKEN.
+    Nesse caso, o cliente não entra no loop normal de comandos; ele pede
+    outro nome e envia um novo JOIN pela mesma conexão.
+    """
+    global MY_USERNAME
+
+    while True:
+        username = input("  Seu nome: ").strip()
+        while not username:
+            username = input("  Nome não pode ser vazio: ").strip()
+
+        try:
+            sock.sendall(make_join(username))
+        except OSError as exc:
+            raise ConnectionError("Não foi possível enviar JOIN ao servidor.") from exc
+
+        while True:
+            line = _recv_line_blocking(sock)
+            msg_type, payload = decode(line)
+
+            if msg_type == ServerMsg.WELCOME:
+                MY_USERNAME = username
+                render(msg_type, payload)
+                return username
+
+            if msg_type == ServerMsg.ERROR:
+                code = payload.get("code", "")
+                render(msg_type, payload)
+
+                if code == ErrorCode.NAME_TAKEN:
+                    print("  Esse nome já está em uso. Escolha outro nome.\n")
+                    break
+
+                if code == ErrorCode.INVALID_ACTION:
+                    print("  Nome inválido. Tente novamente.\n")
+                    break
+
+                raise RuntimeError(payload.get("message", "Erro ao entrar na partida."))
+
+            # Não é esperado receber outro tipo antes do WELCOME, mas renderizamos
+            # para não esconder mensagens do servidor caso isso aconteça.
+            render(msg_type, payload)
+
+
 # ── Thread de recepção ───────────────────────────────────────────
 
 def receive_loop(sock: socket.socket, stop_event: threading.Event):
@@ -284,12 +344,6 @@ def main():
     print(f"  🚪 ESCAPE ROOM — {args.host}:{args.port}")
     print(f"{'═'*56}")
 
-    username = input("  Seu nome: ").strip()
-    while not username:
-        username = input("  Nome não pode ser vazio: ").strip()
-
-    MY_USERNAME = username
-
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((args.host, args.port))
@@ -297,7 +351,15 @@ def main():
         print(f"❌ Não foi possível conectar. Servidor está rodando?")
         sys.exit(1)
 
-    sock.sendall(make_join(username))
+    try:
+        join_handshake(sock)
+    except Exception as exc:
+        print(f"❌ Não foi possível entrar na partida: {exc}")
+        try:
+            sock.close()
+        except OSError:
+            pass
+        sys.exit(1)
 
     stop_event  = threading.Event()
     recv_thread = threading.Thread(target=receive_loop, args=(sock, stop_event), daemon=True)
