@@ -272,6 +272,19 @@ IN_GAME -> GAME_OVER: vitória, tempo esgotado ou menos de 2 jogadores
 GAME_OVER -> WAITING_PLAYERS: reset automático após 10 segundos
 ```
 
+Diagrama da máquina de estados:
+
+```mermaid
+stateDiagram-v2
+    [*] --> WAITING_PLAYERS
+    WAITING_PLAYERS --> COUNTDOWN: todos prontos e roles essenciais completos
+    COUNTDOWN --> WAITING_PLAYERS: jogadores insuficientes ou role essencial ausente
+    COUNTDOWN --> IN_GAME: contagem chegou a 0
+    IN_GAME --> WAITING_PLAYERS: role essencial perdido por desconexão
+    IN_GAME --> GAME_OVER: vitória, tempo esgotado ou menos de 2 jogadores
+    GAME_OVER --> WAITING_PLAYERS: reset automático após 10 segundos
+```
+
 ### 6.3. Mensagens Cliente → Servidor
 
 | Mensagem | Payload | Estado válido | Efeito |
@@ -472,6 +485,51 @@ Servidor → Cliente:
 11. Servidor responde com `ACTION_RESULT`, `ROOM_UPDATE`, `PLAYER_EVENT`, `CHAT_BROADCAST` e `TIMER_UPDATE`, conforme o caso.
 12. Quando a saída final é alcançada, servidor envia `GAME_OVER`.
 13. Após 10 segundos, o servidor reseta automaticamente para o lobby.
+
+Diagrama de sequência simplificado:
+
+```mermaid
+sequenceDiagram
+    participant A as Cliente A
+    participant B as Cliente B
+    participant S as Servidor
+
+    A->>S: JOIN {username: "Ana"}
+    S-->>A: WELCOME
+    S-->>A: MAP_VOTE_STATE
+    S-->>A: LOBBY_UPDATE
+
+    B->>S: JOIN {username: "Bruno"}
+    S-->>B: WELCOME
+    S-->>B: MAP_VOTE_STATE
+    S-->>A: LOBBY_UPDATE
+    S-->>B: LOBBY_UPDATE
+
+    A->>S: READY
+    B->>S: READY
+    Note over S: all_ready() == true
+
+    S-->>A: COUNTDOWN
+    S-->>B: COUNTDOWN
+    S-->>A: MAP_SELECTED
+    S-->>B: MAP_SELECTED
+
+    S-->>A: GAME_START {room: "recepcao"}
+    S-->>B: GAME_START {room: "sala_de_forca"}
+
+    A->>S: ACTION / CHAT
+    B->>S: ACTION / CHAT
+    S-->>A: ACTION_RESULT / ROOM_UPDATE / PLAYER_EVENT
+    S-->>B: ACTION_RESULT / ROOM_UPDATE / PLAYER_EVENT
+    S-->>A: CHAT_BROADCAST / TIMER_UPDATE
+    S-->>B: CHAT_BROADCAST / TIMER_UPDATE
+
+    A->>S: ACTION {command: "ir norte"}
+    Note over S: saída final alcançada
+    S-->>A: GAME_OVER {result: "win"}
+    S-->>B: GAME_OVER {result: "win"}
+    Note over S: reset automático após 10 segundos
+```
 
 ### 6.7. Concorrência e consistência
 
