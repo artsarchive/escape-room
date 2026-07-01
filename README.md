@@ -1,89 +1,89 @@
-# Escape Room Cooperativo - ERP/1.0
+# Escape Room Cooperativo — ERP/1.0
 
-Projeto final da disciplina de Redes de Computadores I - UESC.
+Projeto final da disciplina de Redes de Computadores I — UESC.
 
-**Alunos:** Arthur Araujo, Bruno Cardoso, Joao Pedro Franca e Lucas Vieira  
-**Aplicacao:** jogo cooperativo de Escape Room em terminal, para 2 a 4 jogadores, usando arquitetura cliente-servidor, sockets TCP e um protocolo de aplicacao proprio: **ERP/1.0 - Escape Room Protocol**.
+**Alunos:** Arthur Araújo, Bruno Cardoso, João Pedro França e Lucas Vieira  
+**Aplicação:** jogo cooperativo de Escape Room em terminal, para 2 a 4 jogadores, usando arquitetura cliente-servidor, sockets TCP e um protocolo de aplicação próprio: **ERP/1.0 — Escape Room Protocol**.
 
 ---
 
-## Sumario
+## Sumário
 
-1. [Proposito da aplicacao](#1-proposito-da-aplicacao)
-2. [Arquitetura geral da solucao](#2-arquitetura-geral-da-solucao)
-3. [Motivacao da escolha do protocolo de transporte](#3-motivacao-da-escolha-do-protocolo-de-transporte)
-4. [Requisitos minimos de funcionamento](#4-requisitos-minimos-de-funcionamento)
-5. [Funcionamento da aplicacao](#5-funcionamento-da-aplicacao)
-6. [Protocolo de aplicacao ERP/1.0](#6-protocolo-de-aplicacao-erp10)
+1. [Propósito da aplicação](#1-propósito-da-aplicação)
+2. [Arquitetura geral da solução](#2-arquitetura-geral-da-solução)
+3. [Motivação da escolha do protocolo de transporte](#3-motivação-da-escolha-do-protocolo-de-transporte)
+4. [Requisitos mínimos de funcionamento](#4-requisitos-mínimos-de-funcionamento)
+5. [Funcionamento da aplicação](#5-funcionamento-da-aplicação)
+6. [Protocolo de aplicação ERP/1.0](#6-protocolo-de-aplicação-erp10)
 7. [Subprotocolo de descoberta de servidor por UDP broadcast](#7-subprotocolo-de-descoberta-de-servidor-por-udp-broadcast)
-8. [Limitacoes conhecidas](#8-limitacoes-conhecidas)
-9. [Instrucoes de execucao](#9-instrucoes-de-execucao)
-10. [Comandos uteis para apresentacao](#10-comandos-uteis-para-apresentacao)
+8. [Limitações conhecidas](#8-limitações-conhecidas)
+9. [Instruções de execução](#9-instruções-de-execução)
+10. [Comandos úteis para apresentação](#10-comandos-úteis-para-apresentação)
 
 ---
 
-## 1. Proposito da aplicacao
+## 1. Propósito da aplicação
 
-A aplicacao implementa um **jogo de Escape Room cooperativo em rede local**. Entre 2 e 4 jogadores entram na mesma partida, sao distribuidos entre dois caminhos ou papeis diferentes do mapa e precisam resolver enigmas que dependem um do outro, trocando informacoes pelo chat embutido no proprio jogo, ate alcancarem juntos a saida dentro de um tempo limite.
+A aplicação implementa um **jogo de Escape Room cooperativo em rede local**. Entre 2 e 4 jogadores entram na mesma partida, são distribuídos entre dois caminhos ou papéis diferentes do mapa e precisam resolver enigmas que dependem um do outro, trocando informações pelo chat embutido no jogo, até alcançarem juntos a saída dentro de um tempo limite.
 
-O objetivo didatico do projeto e exercitar, na pratica, conceitos centrais da disciplina de Redes de Computadores:
+O objetivo didático do projeto é exercitar, na prática, conceitos centrais da disciplina de Redes de Computadores:
 
-- comunicacao cliente-servidor sobre sockets;
-- definicao de um protocolo de aplicacao proprio;
-- delimitacao de mensagens sobre um fluxo TCP;
-- serializacao e desserializacao de mensagens em JSON;
-- maquina de estados do servidor;
+- comunicação cliente-servidor sobre sockets;
+- definição de um protocolo de aplicação próprio;
+- delimitação de mensagens sobre um fluxo TCP;
+- serialização e desserialização de mensagens em JSON;
+- máquina de estados do servidor;
 - tratamento de erros de protocolo e de jogo;
-- concorrencia com multiplos clientes;
+- concorrência com múltiplos clientes;
 - gerenciamento de estado global compartilhado;
-- tolerancia a falhas de rede, como quedas de conexao e desconexoes no meio da partida.
+- tolerância a falhas de rede, como quedas de conexão e desconexões no meio da partida.
 
-O servidor e a **fonte unica de verdade** do jogo. Ele mantem o estado de cada jogador, das salas, dos objetos, dos enigmas, dos inventarios, do tempo restante e da condicao de vitoria ou derrota. Os clientes nunca alteram o estado diretamente; eles apenas enviam comandos e recebem atualizacoes processadas e autorizadas pelo servidor.
+O servidor é a **fonte única de verdade** do jogo. Ele mantém o estado de cada jogador, das salas, dos objetos, dos enigmas, dos inventários, do tempo restante e da condição de vitória ou derrota. Os clientes nunca alteram o estado diretamente; eles apenas enviam comandos e recebem atualizações processadas e autorizadas pelo servidor.
 
 ---
 
-## 2. Arquitetura geral da solucao
+## 2. Arquitetura geral da solução
 
-A solucao e dividida em modulos independentes, mas integrados:
+A solução é dividida em módulos independentes, mas integrados:
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `server.py` | Servidor TCP. Aceita conexoes, mantem a maquina de estados da partida, processa mensagens e decide se a resposta sera enviada a um cliente especifico, a todos os clientes ou apenas aos jogadores de uma sala. |
-| `client.py` | Cliente de terminal. Envia comandos digitados pelo jogador, executa o handshake de entrada, renderiza mensagens recebidas do servidor e preserva o prompt durante mensagens assincronas. |
-| `launcher.py` | Interface de conveniencia. Permite criar uma partida local ou encontrar automaticamente um servidor na rede por UDP broadcast. |
-| `game/protocol.py` | Define tipos de mensagens, constantes do jogo, estados do servidor, codigos de erro e funcoes de serializacao JSON. |
-| `game/state.py` | Contem a logica de jogo: jogadores, inventario, salas, enigmas, parser de comandos, aliases, movimentacao, anti-softlock e atualizacoes de sala. |
-| `game/rooms.py` | Define o mapa Hospital Abandonado, seus caminhos, salas, objetos, saidas, senhas, dicas e papeis necessarios. |
+| `server.py` | Servidor TCP. Aceita conexões, mantém a máquina de estados da partida, processa mensagens e decide se a resposta será enviada a um cliente específico, a todos os clientes ou apenas aos jogadores de uma sala. |
+| `client.py` | Cliente de terminal. Envia comandos digitados pelo jogador, executa o handshake de entrada, renderiza mensagens recebidas do servidor e preserva o prompt durante mensagens assíncronas. |
+| `launcher.py` | Interface de conveniência. Permite criar uma partida local ou encontrar automaticamente um servidor na rede por UDP broadcast. |
+| `game/protocol.py` | Define tipos de mensagens, constantes do jogo, estados do servidor, códigos de erro e funções de serialização JSON. |
+| `game/state.py` | Contém a lógica de jogo: jogadores, inventário, salas, enigmas, parser de comandos, aliases, movimentação, anti-softlock e atualizações de sala. |
+| `game/rooms.py` | Define o mapa Hospital Abandonado, seus caminhos, salas, objetos, saídas, senhas, dicas e papéis necessários. |
 
-O servidor usa uma arquitetura **single-process e multi-thread**. A thread principal aceita conexoes (`accept`) e cria uma thread dedicada para cada cliente conectado. Cada thread de cliente fica bloqueada lendo linhas do socket daquele jogador e, quando recebe uma mensagem completa, repassa essa mensagem ao servidor para processamento.
+O servidor usa uma arquitetura **single-process e multi-thread**. A thread principal aceita conexões (`accept`) e cria uma thread dedicada para cada cliente conectado. Cada thread de cliente fica bloqueada lendo linhas do socket daquele jogador e, quando recebe uma mensagem completa, repassa essa mensagem ao servidor para processamento.
 
-Como varias threads podem tentar ler ou alterar a mesma instancia de `GameState` e o mesmo dicionario de conexoes, o servidor protege as secoes criticas com `threading.Lock`. Assim, acoes concorrentes, como dois jogadores tentando pegar o mesmo item ao mesmo tempo, sao serializadas e nao corrompem o estado compartilhado.
+Como várias threads podem tentar ler ou alterar a mesma instância de `GameState` e o mesmo dicionário de conexões, o servidor protege as seções críticas com `threading.Lock`. Assim, ações concorrentes, como dois jogadores tentando pegar o mesmo item ao mesmo tempo, são serializadas e não corrompem o estado compartilhado.
 
 ---
 
-## 3. Motivacao da escolha do protocolo de transporte
+## 3. Motivação da escolha do protocolo de transporte
 
-O protocolo principal do jogo, **ERP/1.0**, roda sobre **TCP**. Essa escolha foi feita porque o jogo depende de uma maquina de estados compartilhada e sensivel a ordem dos eventos.
+O protocolo principal do jogo, **ERP/1.0**, roda sobre **TCP**. Essa escolha foi feita porque o jogo depende de uma máquina de estados compartilhada e sensível à ordem dos eventos.
 
-### 3.1. Entrega confiavel
+### 3.1. Entrega confiável
 
-O TCP garante que os dados enviados sejam entregues ou que a conexao seja considerada quebrada. Isso e importante porque uma mensagem `ACTION`, `ROOM_UPDATE` ou `GAME_OVER` perdida poderia deixar clientes e servidor com percepcoes diferentes do jogo.
+O TCP garante que os dados enviados sejam entregues ou que a conexão seja considerada quebrada. Isso é importante porque uma mensagem `ACTION`, `ROOM_UPDATE` ou `GAME_OVER` perdida poderia deixar clientes e servidor com percepções diferentes do jogo.
 
-Exemplo: se o cliente enviasse `pegar chave_direita` e essa mensagem se perdesse silenciosamente, o jogador poderia acreditar que pegou a chave, enquanto o servidor continuaria com a chave disponivel na sala. Como o TCP e confiavel, esse tipo de perda silenciosa nao ocorre.
+Exemplo: se o cliente enviasse `pegar chave_direita` e essa mensagem se perdesse silenciosamente, o jogador poderia acreditar que pegou a chave, enquanto o servidor continuaria com a chave disponível na sala. Como o TCP é confiável, esse tipo de perda silenciosa não ocorre.
 
 ### 3.2. Ordem de chegada
 
-As mensagens chegam na mesma ordem em que foram enviadas. Isso e essencial para preservar a consistencia do estado do jogo. Por exemplo, o servidor precisa processar `ir leste` antes de `pegar chave`, caso a chave esteja na sala de destino.
+As mensagens chegam na mesma ordem em que foram enviadas. Isso é essencial para preservar a consistência do estado do jogo. Por exemplo, o servidor precisa processar `ir leste` antes de `pegar chave`, caso a chave esteja na sala de destino.
 
-Se as mensagens chegassem fora de ordem, uma acao poderia ser rejeitada ou processada sobre um estado errado. O TCP evita esse problema por construcao.
+Se as mensagens chegassem fora de ordem, uma ação poderia ser rejeitada ou processada sobre um estado errado. O TCP evita esse problema por construção.
 
-### 3.3. Conexao persistente
+### 3.3. Conexão persistente
 
-Cada jogador mantem uma conexao TCP aberta com o servidor durante toda a partida. Isso simplifica a identificacao de sessao: o servidor sabe qual socket pertence a qual jogador depois do `JOIN`, e pode enviar respostas individualizadas por essa mesma conexao.
+Cada jogador mantém um socket TCP aberto durante a partida. Essa conexão persistente simplifica a identificação de qual cliente enviou cada comando e permite que o servidor envie mensagens assíncronas, como `TIMER_UPDATE`, `PLAYER_EVENT` e `CHAT_BROADCAST`.
 
-### 3.4. Delimitacao de mensagens com JSON + quebra de linha
+### 3.4. Delimitação de mensagens com JSON + quebra de linha
 
-O TCP entrega um fluxo continuo de bytes, sem preservar fronteiras de mensagem. Por isso, o ERP/1.0 usa uma estrategia de enquadramento: cada mensagem e um objeto JSON finalizado por uma quebra de linha (`\n`).
+O TCP entrega um fluxo contínuo de bytes, sem preservar fronteiras de mensagem. Por isso, o ERP/1.0 usa uma estratégia de enquadramento: cada mensagem é um objeto JSON finalizado por uma quebra de linha (`\n`).
 
 Exemplo:
 
@@ -91,25 +91,35 @@ Exemplo:
 {"type": "ACTION", "payload": {"command": "examinar mesa"}}
 ```
 
-O servidor e o cliente acumulam bytes em um buffer e so decodificam uma mensagem quando encontram `\n`. Isso permite reconstruir corretamente mensagens mesmo que o TCP entregue um payload fragmentado em multiplos pacotes ou agrupe varias mensagens em um unico `recv()`.
+O servidor e o cliente acumulam bytes em um buffer e só decodificam uma mensagem quando encontram `\n`. Isso permite reconstruir corretamente mensagens mesmo que o TCP entregue dados fragmentados ou agrupados.
 
-### 3.5. Por que UDP nao foi usado no jogo principal?
+### 3.5. Uso auxiliar de UDP
 
-O UDP nao garante entrega, ordem ou conexao persistente. Para o jogo principal, isso exigiria implementar manualmente confirmacoes, numeros de sequencia, retransmissoes e controle de sessao na camada de aplicacao. Como o Escape Room nao e um jogo de acao em tempo real com exigencia extrema de latencia, o TCP e mais adequado.
-
-O UDP foi reservado apenas para uma funcao auxiliar: a descoberta automatica de servidor em rede local, explicada na [secao 7](#7-subprotocolo-de-descoberta-de-servidor-por-udp-broadcast). Nessa etapa, a perda de um pacote nao compromete o jogo, porque o anuncio e reenviado periodicamente.
+O UDP não é usado para a comunicação principal do jogo. Ele aparece apenas no `launcher.py`, para a descoberta automática de servidor na rede local. Nessa etapa, a perda de um pacote não compromete o jogo, porque o anúncio é reenviado periodicamente.
 
 ---
 
-## 4. Requisitos minimos de funcionamento
+## 4. Requisitos mínimos de funcionamento
 
-- Python 3.10 ou superior, pois o codigo usa anotacoes de tipo como `str | None`.
-- Rede TCP/IP entre as maquinas.
+- Python 3.10 ou superior, pois o código usa anotações de tipo como `str | None`.
+- Rede TCP/IP entre as máquinas.
 - Porta TCP `5000` liberada no host do servidor.
-- Mesma sub-rede local apenas se for usado o recurso de descoberta automatica do `launcher.py`, pois UDP broadcast nao atravessa roteadores por padrao.
-- Porta UDP `5001` liberada se for usada a busca automatica de servidor pelo `launcher.py`.
-- Terminal com suporte a UTF-8 e sequencias ANSI, ja que o cliente usa acentuacao, caracteres visuais e limpeza de linha de prompt.
-- Modulo `readline` ou equivalente. Em Linux e macOS, geralmente ja existe. No Windows nativo, pode ser necessario instalar `pyreadline3` com:
+- Mesma sub-rede local, apenas se for usada a descoberta automática do `launcher.py`.
+- Porta UDP `5001` liberada, apenas para o recurso de descoberta automática por broadcast.
+- Terminal com suporte a UTF-8 e sequências ANSI.
+- Entre 2 e 4 jogadores por partida.
+
+### Observação sobre Windows e `readline`
+
+O cliente importa o módulo `readline` para melhorar a experiência visual do terminal, preservando melhor o texto que o jogador está digitando quando chegam mensagens do servidor.
+
+Em Linux e macOS, esse módulo geralmente já vem disponível. No Windows, pode aparecer:
+
+```text
+ModuleNotFoundError: No module named 'readline'
+```
+
+Nesse caso, instale:
 
 ```powershell
 python -m pip install pyreadline3
@@ -121,356 +131,235 @@ ou:
 py -m pip install pyreadline3
 ```
 
-- Entre 2 e 4 jogadores por partida, conforme `MIN_PLAYERS` e `MAX_PLAYERS`.
+Depois rode novamente:
 
-Para testes na mesma maquina, pode ser usado `127.0.0.1`. Em maquinas diferentes na mesma rede, os clientes devem conseguir acessar o IP e a porta TCP do servidor.
+```powershell
+python launcher.py
+```
 
 ---
 
-## 5. Funcionamento da aplicacao
+## 5. Funcionamento da aplicação
 
-### 5.1. Papeis, mapa e cooperacao
+### 5.1. Papéis, mapa e cooperação
 
-O mapa atual, **Hospital Abandonado**, possui dois caminhos essenciais:
+O mapa atual, **Hospital Abandonado**, possui dois caminhos essenciais: `role 0`, associado ao caminho da Recepção, e `role 1`, associado ao caminho da Sala de Força. Os caminhos são inicialmente separados e convergem no Corredor Central.
 
-- `role 0`: caminho da Recepcao;
-- `role 1`: caminho da Sala de Forca.
+A distribuição de papéis é alternada conforme a quantidade de jogadores conectados:
 
-Os caminhos sao inicialmente separados e convergem no **Corredor Central**.
+- 2 jogadores: `role 0`, `role 1`;
+- 3 jogadores: `role 0`, `role 1`, `role 0`;
+- 4 jogadores: `role 0`, `role 1`, `role 0`, `role 1`.
 
-A distribuicao de papeis e alternada conforme a quantidade de jogadores conectados:
+Cada caminho contém pistas ou ações que ajudam o outro caminho. Por exemplo, uma informação encontrada em uma sala pode ser a senha necessária para outro jogador avançar. O jogo não anuncia automaticamente todo item encontrado; por isso, o comando `chat <mensagem>` é parte essencial da cooperação.
 
-| Quantidade de jogadores | Distribuicao de papeis |
+Alguns eventos cooperativos mais críticos, como energia religada, porta destrancada remotamente e reencontro no corredor central, são anunciados automaticamente via `PLAYER_EVENT`, para evitar que uma virada de jogo importante passe despercebida.
+
+### 5.1.1. Descrição das salas
+
+| Sala | Descrição |
 |---|---|
-| 2 jogadores | `role 0`, `role 1` |
-| 3 jogadores | `role 0`, `role 1`, `role 0` |
-| 4 jogadores | `role 0`, `role 1`, `role 0`, `role 1` |
-
-Com isso, jogadores extras entram como apoio em caminhos ja existentes. O mapa nao cria `role 2` ou `role 3`; ele redistribui os jogadores entre os dois papeis essenciais.
-
-Cada caminho contem pistas ou acoes que ajudam o outro caminho. Por exemplo, uma informacao encontrada em uma sala pode ser a senha necessaria para outro jogador avancar. O jogo nao anuncia automaticamente todo item encontrado; por isso, o comando `chat <mensagem>` e parte essencial da cooperacao.
-
-Alguns eventos cooperativos mais criticos, como energia religada, porta destrancada remotamente e reencontro no Corredor Central, sao anunciados automaticamente via `PLAYER_EVENT` para evitar que uma virada de jogo importante passe despercebida.
-
-A saida final do Corredor Central exige duas chaves fisicas distintas, uma de cada caminho. Cada chave deve ser usada em seu dispositivo correspondente.
-
-### 5.1.1. Descricao das salas
-
-| Sala | Descricao |
-|---|---|
-| Recepcao | Sala inicial dos jogadores do `role 0`. Contem objetos como o terminal de monitoramento e uma porta protegida por senha que permite avancar para novas areas do mapa. |
-| Sala de Forca | Sala inicial dos jogadores do `role 1`. Possui o painel de controle responsavel por restaurar a energia do hospital e uma porta protegida por senha. |
-| Consultorio | Area intermediaria do caminho da Recepcao. Contem pistas que ajudam o outro caminho. |
-| Almoxarifado | Area intermediaria do caminho da Sala de Forca. Contem a valvula e pistas usadas na progressao. |
-| Ala Medica | Area avancada do caminho da Recepcao. Contem o cofre medico e itens importantes para a conclusao da partida. |
-| Subsolo | Area avancada do caminho da Sala de Forca. Contem a caixa de ferramentas, o servidor de TI e outros elementos necessarios para a conclusao. |
-| Corredor Central | Area onde os dois caminhos convergem. Possui dispositivos que exigem cooperacao entre os jogadores. |
-| Saida | Destino final da partida. A vitoria ocorre quando todas as condicoes necessarias para abertura da saida forem satisfeitas dentro do tempo limite. |
+| Recepção | Sala inicial dos jogadores do `role 0`. Contém objetos como o terminal de monitoramento e uma porta protegida por senha. |
+| Sala de Força | Sala inicial dos jogadores do `role 1`. Possui o painel de controle responsável por restaurar a energia do hospital e uma porta protegida por senha. |
+| Consultório | Área avançada do caminho da Recepção, com pistas necessárias para prosseguir. |
+| Almoxarifado | Área avançada do caminho da Sala de Força, com desafios e pistas para o subsolo. |
+| Ala Médica | Contém o cofre médico e pistas utilizadas para obtenção de itens importantes. |
+| Subsolo | Reúne desafios envolvendo a caixa de ferramentas, o servidor de TI e outros elementos necessários para a conclusão do jogo. |
+| Corredor Central | Área onde os caminhos convergem. Possui dispositivos que exigem cooperação entre os jogadores. |
+| Saída | Destino final da partida. A vitória ocorre quando todas as condições necessárias para a abertura forem satisfeitas dentro do tempo limite. |
 
 ### 5.2. Comandos do jogador
 
 | Categoria | Comandos |
 |---|---|
 | Comandos gerais | `ready`; `sair`; `chat <mensagem>`; `votar hospital`; `olhar`; `sala`; `inventario`; `dica` |
-| Acoes de exploracao | `examinar <objeto>`; `pegar <objeto>` |
-| Acoes de uso | `usar <item> em <objeto>`; `colocar <senha> no <objeto>` |
-| Movimentacao | `ir norte`; `ir sul`; `ir leste`; `ir oeste` |
+| Ações de exploração | `examinar <objeto>`; `pegar <objeto>` |
+| Ações de uso | `usar <item> em <objeto>`; `colocar <senha> no <objeto>` |
+| Movimentação | `ir norte`; `ir sul`; `ir leste`; `ir oeste` |
 
-### 5.2.1. Normalizacao e facilitacao da digitacao
+### 5.2.1. Normalização e facilitação da digitação
 
-Para melhorar a usabilidade em uma interface de terminal, o jogo nao exige que o jogador digite sempre o identificador interno exato dos objetos. Antes de interpretar a entrada, o motor de jogo aplica uma etapa de normalizacao:
+Para melhorar a usabilidade em uma interface de terminal, o jogo não exige que o jogador digite sempre o identificador interno exato dos objetos. Antes de interpretar a entrada, o motor de jogo aplica uma etapa de normalização:
 
-- converte o texto para minusculas;
+- converte o texto para minúsculas;
 - remove acentos;
-- trata underscores (`_`) como espacos;
-- trata hifens (`-`) como espacos;
-- reduz multiplos espacos para um unico espaco.
+- trata underscores (`_`) e hífens (`-`) como espaços;
+- reduz múltiplos espaços para um único espaço.
 
-Com isso, entradas como `Inventario`, `inventario` e `INVENTARIO` sao equivalentes. Tambem e possivel digitar nomes internos com espacos, sem underline.
+Com isso, entradas como `Inventário`, `inventario` e `INVENTARIO` são equivalentes. Também é possível digitar nomes internos com espaços, sem underline. Por exemplo, `dispositivo esquerdo` pode ser interpretado como `dispositivo_esquerdo`, e `placa de alimentacao` pode ser interpretada como `placa_de_alimentacao`.
 
-Exemplos de equivalencia por normalizacao:
+Além da normalização, o jogo possui aliases específicos para alguns objetos importantes. Esses aliases foram verificados no código e só funcionam quando o jogador está na sala correta e possui o papel que consegue ver aquele objeto.
 
-| Entrada do jogador | Objeto interno correspondente |
-|---|---|
-| `placa de alimentacao` | `placa_de_alimentacao` |
-| `caixa de ferramentas` | `caixa_de_ferramentas` |
-| `dispositivo esquerdo` | `dispositivo_esquerdo` |
-| `dispositivo direito` | `dispositivo_direito` |
-| `porta leste` | `porta_leste` |
-| `porta sul` | `porta_sul` |
-
-Alem da normalizacao, o jogo possui aliases especificos para alguns objetos importantes. Esses aliases foram verificados no codigo e so funcionam quando o jogador esta na sala correta e possui o papel que consegue ver aquele objeto.
-
-| Entrada aceita pelo jogador | Objeto interno resolvido | Condicao de funcionamento |
+| Entrada aceita pelo jogador | Objeto interno resolvido | Condição de funcionamento |
 |---|---|---|
-| `examinar terminal` | `terminal_de_monitoramento` | Recepcao, jogador do `role 0` |
-| `examinar painel` / `colocar 440 no painel` | `painel_de_controle` | Sala de Forca, jogador do `role 1` |
-| `colocar 8520 na porta` | `porta_leste` | Recepcao, porta interativa visivel |
-| `colocar 1968 na porta` | `porta_sul` | Sala de Forca, porta interativa visivel |
-| `examinar cofre` / `colocar 9999 no cofre` | `cofre_medico` | Ala Medica |
+| `examinar terminal` | `terminal_de_monitoramento` | Recepção, jogador do `role 0` |
+| `examinar painel` / `colocar 440 no painel` | `painel_de_controle` | Sala de Força, jogador do `role 1` |
+| `colocar 8520 na porta` | `porta_leste` | Recepção, porta interativa visível |
+| `colocar 1968 na porta` | `porta_sul` | Sala de Força, porta interativa visível |
+| `examinar cofre` / `colocar 9999 no cofre` | `cofre_medico` | Ala Médica |
 | `examinar caixa` / `colocar 1234 na caixa` | `caixa_de_ferramentas` | Subsolo |
 | `examinar servidor` / `colocar 7701 no servidor` | `servidor_de_ti` | Subsolo |
-| `usar chave direita em dispositivo direito` | `chave_direita` + `dispositivo_direito` | Corredor Central, item no inventario |
-| `usar chave esquerda em dispositivo esquerdo` | `chave_esquerda` + `dispositivo_esquerdo` | Corredor Central, item no inventario |
-| `colocar 314 na valvula` | `valvula` | Almoxarifado; acento opcional em `valvula`/`válvula` |
+| `usar chave direita em dispositivo direito` | `chave_direita` + `dispositivo_direito` | Corredor Central, item no inventário |
 
-A resolucao contextual de `porta` e uma regra especifica: quando a sala possui uma unica porta interativa visivel, o jogador pode digitar `colocar <senha> na porta`, sem precisar escrever `porta_leste` ou `porta_sul`. Na Recepcao, `porta` e resolvida como `porta_leste`; na Sala de Forca, `porta` e resolvida como `porta_sul`.
+A resolução contextual de `porta` é uma regra específica: quando a sala possui uma única porta interativa visível, o jogador pode digitar `colocar <senha> na porta`, sem precisar escrever `porta_leste` ou `porta_sul`. Na Recepção, `porta` é resolvida como `porta_leste`; na Sala de Força, `porta` é resolvida como `porta_sul`.
 
-Nem toda abreviacao generica e aceita automaticamente. Se nao houver alias para uma palavra isolada, o jogador deve digitar um nome suficientemente proximo do objeto interno normalizado. Essa restricao evita ambiguidade quando existem varios objetos parecidos na mesma sala.
+Nem toda abreviação genérica é aceita automaticamente. Se não houver alias para uma palavra isolada, o jogador deve digitar um nome suficientemente próximo do objeto interno normalizado. Essa restrição evita ambiguidade quando existem vários objetos parecidos na mesma sala.
 
 ### 5.2.2. Sistema de dicas (`dica`)
 
-Cada sala do mapa possui uma lista propria de dicas, definida estaticamente em `game/rooms.py`. O comando `dica` nao revela todas as dicas de uma vez: a cada chamada, o servidor entrega a proxima dica da lista da sala em que o jogador se encontra, avancando um indice interno mantido por sala.
+Cada sala do mapa possui uma lista própria de dicas, definida estaticamente em `game/rooms.py`. O comando `dica` não revela todas as dicas de uma vez: a cada chamada, o servidor entrega a próxima dica da lista da sala em que o jogador se encontra, avançando um índice interno mantido por sala.
 
-Esse indice e compartilhado entre os jogadores que percorrem o mesmo caminho, e nao e reiniciado por jogador. Se um jogador pedir uma dica e, em seguida, outro jogador da mesma sala pedir novamente, ele recebe a dica seguinte da lista, nao a primeira. Quando todas as dicas de uma sala ja foram entregues, novas chamadas de `dica` retornam a mensagem `Sem mais dicas.`.
+Esse índice é compartilhado entre os jogadores que percorrem o mesmo caminho, e não é reiniciado por jogador: se um jogador pedir uma dica e, em seguida, outro jogador da mesma sala pedir novamente, ele recebe a dica seguinte da lista, não a primeira. Quando todas as dicas de uma sala já foram entregues, novas chamadas de `dica` retornam a mensagem `Sem mais dicas.`.
 
-O indice de dicas e reiniciado junto com o restante do estado do mapa sempre que a partida e reiniciada, seja por vitoria, derrota, perda de papel essencial ou cancelamento de contagem regressiva.
+O índice de dicas é reiniciado junto com o restante do estado do mapa sempre que a partida é reiniciada por vitória, derrota, perda de papel essencial ou cancelamento de contagem regressiva.
 
-A resposta ao comando `dica` e sempre enviada via `HINT`, em unicast, apenas ao jogador que solicitou.
+A resposta ao comando `dica` é sempre enviada via `HINT`, em unicast, apenas ao jogador que solicitou.
 
-### 5.2.3. Preservacao do prompt e conforto de digitacao no cliente
+### 5.2.3. Preservação do prompt e conforto de digitação no cliente
 
-O cliente possui uma melhoria de interface para nao atrapalhar o jogador enquanto ele digita. Como mensagens do servidor podem chegar a qualquer momento, o cliente usa uma funcao de impressao controlada que limpa a linha atual, imprime a mensagem recebida e redesenha o prompt junto com o texto que o usuario estava digitando.
+O cliente também possui uma melhoria de interface para não atrapalhar o jogador enquanto ele digita. Como mensagens do servidor podem chegar a qualquer momento, o cliente usa uma função de impressão controlada que limpa a linha atual, imprime a mensagem recebida e redesenha o prompt junto com o texto que o usuário estava digitando.
 
-Essa estrategia evita que mensagens assincronas, como `CHAT_BROADCAST`, `TIMER_UPDATE` ou `PLAYER_EVENT`, quebrem visualmente o comando em construcao. Em ambientes com `readline` disponivel, o cliente consegue ler o conteudo atual da linha de entrada para restaura-lo apos a impressao da mensagem.
+Essa estratégia evita que mensagens assíncronas, como `CHAT_BROADCAST`, `TIMER_UPDATE` ou `PLAYER_EVENT`, quebrem visualmente o comando em construção. Em ambientes com `readline` disponível, o cliente consegue ler o conteúdo atual da linha de entrada para restaurá-lo após a impressão da mensagem.
 
 ### 5.3. Escolha de nome do jogador
 
-Ao abrir o cliente, o jogador informa um nome de usuario. Se esse nome ja estiver em uso por outro jogador conectado, o servidor responde `ERROR [NAME_TAKEN]`.
+Ao abrir o cliente, o jogador informa um nome de usuário. Se esse nome já estiver em uso por outro jogador conectado, o servidor responde `ERROR [NAME_TAKEN]`. O cliente de referência não libera o loop normal de comandos nesse momento; ele solicita outro nome ao usuário e envia novo `JOIN` na mesma conexão. O jogador só entra definitivamente no jogo depois que o servidor responde `WELCOME`.
 
-O cliente de referencia nao libera o loop normal de comandos nesse momento. Ele solicita outro nome ao usuario e envia novo `JOIN` na mesma conexao. O jogador so entra definitivamente no jogo depois que o servidor responde `WELCOME`.
+### 5.4. Robustez contra desconexões e anti-softlock
 
-### 5.4. Robustez contra desconexoes e anti-softlock
+Como o mapa depende de ambos os papéis essenciais, o servidor trata desconexões de forma diferente conforme o momento da partida.
 
-Como o mapa depende dos dois papeis essenciais, o servidor trata desconexoes com regras especificas.
+- No lobby: se alguém sai, os papéis dos jogadores restantes são redistribuídos e o estado de `ready` é limpo.
+- Durante o `COUNTDOWN`: se o número de jogadores cair abaixo do mínimo ou um papel essencial ficar descoberto, a contagem é cancelada e todos voltam ao lobby.
+- Durante a partida: se restarem menos de 2 jogadores, o jogo termina em derrota.
+- Durante a partida, se um papel essencial ficar vazio, a partida é reiniciada automaticamente: mapa resetado, inventários limpos, papéis redistribuídos e jogadores de volta ao lobby.
+- Se a partida puder continuar, os itens do inventário do jogador desconectado são devolvidos ao chão da sala onde ele estava, permitindo que outro jogador do mesmo caminho recupere esses itens sem refazer puzzles já resolvidos.
 
-- **No lobby:** se alguem sai, o servidor remove o jogador, remove o voto de mapa dele, redistribui os papeis dos jogadores restantes, limpa o estado `ready` e envia `LOBBY_UPDATE` e `MAP_VOTE_STATE`.
-- **Durante o COUNTDOWN:** se o numero de jogadores cair abaixo do minimo ou um papel essencial ficar descoberto, a contagem e cancelada, o mapa e resetado e todos voltam ao lobby.
-- **Durante a partida, com menos de 2 jogadores:** o jogo termina em derrota com `GAME_OVER`.
-- **Durante a partida, com papel essencial vazio:** a partida e reiniciada automaticamente, com mapa resetado, inventarios limpos, papeis redistribuidos e jogadores de volta ao lobby.
-- **Durante a partida, se o jogo puder continuar:** os itens do inventario do jogador desconectado sao devolvidos ao chao da sala onde ele estava, permitindo que outro jogador do mesmo caminho recupere esses itens sem refazer puzzles ja resolvidos.
-
-Exemplo de item devolvido a sala:
-
-```text
-Bruno estava com chave_direita.
-Bruno caiu.
-Daniel ainda cobre o role 1.
-A partida continua.
-chave_direita volta para o chao da sala onde Bruno caiu.
-Daniel pode usar: pegar chave direita.
-```
-
-Apos isso, o servidor envia `ROOM_UPDATE` aos jogadores que permaneceram naquela sala, atualizando a lista de presentes e os objetos disponiveis.
-
-Essa logica evita dois tipos de softlock: iniciar ou continuar uma partida sem um caminho essencial ativo, ou perder para sempre um item essencial porque o jogador que o carregava desconectou.
+Essa lógica evita dois tipos de softlock: começar ou continuar sem um caminho essencial ativo, ou perder para sempre um item essencial porque o jogador que o carregava desconectou.
 
 ---
 
-## 6. Protocolo de aplicacao ERP/1.0
+## 6. Protocolo de aplicação ERP/1.0
 
 ### 6.1. Formato geral das mensagens
 
-Toda mensagem ERP/1.0 e um unico objeto JSON codificado em UTF-8, com os campos obrigatorios `type` e `payload`, seguido de uma quebra de linha (`\n`) como delimitador de quadro.
-
-Estrutura geral:
-
-```json
-{
-  "type": "TIPO_DA_MENSAGEM",
-  "payload": {}
-}
-```
-
-Exemplo:
+Toda mensagem ERP/1.0 é um único objeto JSON codificado em UTF-8, com os campos obrigatórios `type` e `payload`, seguido de uma quebra de linha como delimitador de quadro.
 
 ```json
 {"type": "ACTION", "payload": {"command": "examinar mesa"}}
 ```
 
-Como o TCP entrega um fluxo continuo de bytes, servidor e cliente mantem buffers de leitura. Sempre que uma quebra de linha aparece, o conteudo anterior e tratado como uma mensagem completa. Se a linha recebida nao for JSON valido ou nao contiver `type`/`payload`, o servidor responde `ERROR [INVALID_ACTION]` e descarta a linha.
+Como o TCP entrega um fluxo contínuo de bytes, servidor e cliente mantêm buffers de leitura. Sempre que uma quebra de linha aparece, o conteúdo anterior é tratado como uma mensagem completa. Se a linha recebida não for JSON válido ou não contiver `type`/`payload`, o servidor responde `ERROR [INVALID_ACTION]` e descarta a linha.
 
-### 6.2. Maquina de estados do servidor
+### 6.2. Máquina de estados do servidor
 
 | Estado | Significado |
 |---|---|
 | `WAITING_PLAYERS` | Lobby. Jogadores podem entrar, votar no mapa e confirmar `ready`. |
-| `COUNTDOWN` | Contagem regressiva antes da partida. Nao permite novos jogadores. |
-| `IN_GAME` | Partida em andamento. Jogadores enviam `ACTION` e `CHAT`; o servidor controla cronometro e estado das salas. |
-| `GAME_OVER` | Partida encerrada por vitoria ou derrota. Depois de alguns segundos, o servidor reseta para `WAITING_PLAYERS`. |
+| `COUNTDOWN` | Contagem regressiva antes da partida. Não permite novos jogadores. |
+| `IN_GAME` | Partida em andamento. Jogadores enviam `ACTION` e `CHAT`; servidor controla cronômetro e estado das salas. |
+| `GAME_OVER` | Partida encerrada por vitória ou derrota. Depois de 10 segundos, o servidor reseta para `WAITING_PLAYERS`. |
 
-### 6.3. Transicoes principais
+Transições principais:
 
 ```text
 [*] -> WAITING_PLAYERS
 WAITING_PLAYERS -> COUNTDOWN: todos prontos e roles essenciais completos
 COUNTDOWN -> WAITING_PLAYERS: jogadores insuficientes ou role essencial ausente
 COUNTDOWN -> IN_GAME: contagem chegou a 0
-IN_GAME -> WAITING_PLAYERS: role essencial perdido por desconexao
-IN_GAME -> GAME_OVER: vitoria, tempo esgotado ou menos de 2 jogadores
-GAME_OVER -> WAITING_PLAYERS: reset automatico apos alguns segundos
+IN_GAME -> WAITING_PLAYERS: role essencial perdido por desconexão
+IN_GAME -> GAME_OVER: vitória, tempo esgotado ou menos de 2 jogadores
+GAME_OVER -> WAITING_PLAYERS: reset automático após 10 segundos
 ```
 
-Tambem e possivel representar a maquina de estados em Mermaid:
+### 6.3. Mensagens Cliente → Servidor
 
-```mermaid
-stateDiagram-v2
-    [*] --> WAITING_PLAYERS
-    WAITING_PLAYERS --> COUNTDOWN: todos prontos\nroles essenciais completos
-    COUNTDOWN --> WAITING_PLAYERS: jogadores insuficientes\nou role essencial ausente
-    COUNTDOWN --> IN_GAME: contagem chegou a 0
-    IN_GAME --> WAITING_PLAYERS: role essencial perdido\npor desconexao
-    IN_GAME --> GAME_OVER: vitoria, tempo esgotado\nou menos de 2 jogadores
-    GAME_OVER --> WAITING_PLAYERS: reset automatico
-```
-
-A transicao de `IN_GAME` direto para `WAITING_PLAYERS` e deliberada. Quando a partida e reiniciada por perda de um papel essencial, nao houve vitoria nem derrota; houve uma condicao que tornaria a partida impossivel de terminar. Por isso, o servidor recomeça a partida em lobby.
-
-### 6.4. Mensagens Cliente -> Servidor
-
-| Mensagem | Payload | Estado valido | Efeito |
+| Mensagem | Payload | Estado válido | Efeito |
 |---|---|---|---|
-| `JOIN` | `{"username": str}` | `WAITING_PLAYERS`, antes de a conexao ter `player_id` | Tenta registrar jogador. Em sucesso, o servidor responde `WELCOME`; em falha, responde `ERROR` e a conexao pode tentar `JOIN` novamente. |
-| `READY` | `{}` | `WAITING_PLAYERS` | Marca jogador como pronto; se todos estiverem prontos e os roles essenciais estiverem completos, inicia `COUNTDOWN`. |
-| `MAP_VOTE` | `{"map": str}` | `WAITING_PLAYERS` | Registra ou substitui voto de mapa. Atualmente existe apenas `hospital`. |
-| `ACTION` | `{"command": str}` | `IN_GAME` | Executa comando de jogo no `GameState`. Fora de `IN_GAME`, gera `ERROR [NOT_IN_GAME]`. |
-| `CHAT` | `{"message": str}` | Qualquer estado apos `JOIN` | Redistribui mensagem textual a todos via `CHAT_BROADCAST`. |
-| `DISCONNECT` | `{}` | Qualquer estado | Saida voluntaria, tratada como desconexao. |
+| `JOIN` | `{"username": str}` | `WAITING_PLAYERS` e antes do `player_id` | Tenta registrar jogador. Em sucesso, `WELCOME`. Em falha, `ERROR` e pode tentar `JOIN` novamente. |
+| `READY` | `{}` | `WAITING_PLAYERS` | Marca jogador como pronto; se todos prontos e roles completos, inicia `COUNTDOWN`. |
+| `MAP_VOTE` | `{"map": str}` | `WAITING_PLAYERS` | Registra ou substitui voto de mapa. |
+| `ACTION` | `{"command": str}` | `IN_GAME` | Executa comando de jogo no `GameState`. Fora de `IN_GAME`, gera `NOT_IN_GAME`. |
+| `CHAT` | `{"message": str}` | Qualquer estado após `JOIN` | Redistribui mensagem textual a todos via `CHAT_BROADCAST`. |
+| `DISCONNECT` | `{}` | Qualquer estado | Saída voluntária, tratada como desconexão. |
 
-Qualquer tipo de mensagem desconhecido recebe `ERROR [INVALID_ACTION]`.
+#### Observação sobre `READY`
 
-Qualquer mensagem que nao seja `JOIN`, enviada antes do jogador ter sido aceito, recebe `ERROR [INVALID_ACTION]` com a mensagem:
+A confirmação de prontidão é unidirecional. Uma vez que o servidor recebe `READY` de um jogador, ele é marcado como pronto e não há, na versão atual do protocolo, uma mensagem para desfazer essa marcação. O estado de prontidão de todos os jogadores só é limpo automaticamente pelo servidor: ao entrar um novo jogador no lobby, ao reiniciar a partida ou ao cancelar a contagem regressiva.
 
-```text
-Envie JOIN antes de qualquer outro comando.
-```
+#### Resolução da votação de mapa (`MAP_VOTE`)
 
-### 6.4.1. Observacao sobre `READY`
+Ao final do `COUNTDOWN`, o servidor apura os votos recebidos via `MAP_VOTE` e seleciona o mapa com maior número de votos. Em caso de empate — incluindo o caso em que nenhum jogador votou — o servidor escolhe o primeiro mapa cadastrado internamente na lista de mapas disponíveis. Como a versão atual possui apenas o mapa `hospital`, essa regra de desempate quase nunca é percebida na prática, mas a estrutura já está preparada para mapas futuros.
 
-A confirmacao de prontidao e unidirecional. Uma vez que o servidor recebe `READY` de um jogador, ele e marcado como pronto e nao ha, na versao atual do protocolo, uma mensagem para desfazer essa marcacao.
+### 6.4. Mensagens Servidor → Cliente
 
-O estado de prontidao de todos os jogadores so e limpo automaticamente pelo servidor: ao entrar um novo jogador no lobby, ao reiniciar a partida ou ao cancelar a contagem regressiva. Um cliente mal-comportado nao tem como reverter sua propria confirmacao sem desconectar e reconectar.
-
-### 6.4.2. Resolucao da votacao de mapa (`MAP_VOTE`)
-
-Ao final do `COUNTDOWN`, o servidor apura os votos recebidos via `MAP_VOTE` e seleciona o mapa com maior numero de votos. Em caso de empate - incluindo o caso em que nenhum jogador votou - o servidor escolhe o primeiro mapa cadastrado internamente na lista de mapas disponiveis.
-
-Como a versao atual do projeto possui apenas o mapa `hospital`, essa regra de desempate nao muda o resultado na pratica, mas a infraestrutura ja esta pronta para novos mapas no futuro.
-
-### 6.5. Mensagens Servidor -> Cliente
-
-| Mensagem | Tipo de envio | Quando e enviada |
+| Mensagem | Tipo de envio | Quando é enviada |
 |---|---|---|
 | `WELCOME` | Unicast | Resposta direta a `JOIN` aceito. |
-| `MAP_VOTE_STATE` | Unicast no `JOIN`; broadcast em `MAP_VOTE` | Informa votos atuais e mapas disponiveis. |
-| `MAP_SELECTED` | Broadcast | Ao final do `COUNTDOWN`, quando o mapa vencedor e escolhido. |
-| `LOBBY_UPDATE` | Broadcast | `JOIN`, `READY`, desconexao em lobby e reset automatico. |
+| `MAP_VOTE_STATE` | Unicast no `JOIN`; broadcast em `MAP_VOTE` | Informa votos atuais e mapas disponíveis. |
+| `MAP_SELECTED` | Broadcast | Ao final do `COUNTDOWN`, quando o mapa vencedor é escolhido. |
+| `LOBBY_UPDATE` | Broadcast | `JOIN`, `READY`, desconexão em lobby e reset automático. |
 | `COUNTDOWN` | Broadcast | A cada segundo da contagem regressiva. |
-| `GAME_START` | Unicast individual | Inicio do jogo; cada jogador recebe sua propria sala inicial. |
+| `GAME_START` | Unicast individual | Início do jogo; cada jogador recebe sua própria sala inicial. |
 | `ACTION_RESULT` | Unicast | Resultado direto do comando enviado pelo jogador. |
-| `ROOM_UPDATE` | Broadcast ou envio direcionado por sala | Quando muda o estado visivel de uma sala: itens, portas, entrada/saida de jogadores ou item dropado. |
-| `PLAYER_EVENT` | Broadcast | Eventos notaveis como `joined`, `left`, `solved`, `moved`, `countdown_cancelled` e `match_reset`. |
-| `CHAT_BROADCAST` | Broadcast | Redistribuicao de mensagem enviada via `CHAT`. |
-| `TIMER_UPDATE` | Broadcast | A cada 120 segundos ou em marcos criticos de tempo. |
+| `ROOM_UPDATE` | Broadcast ou envio direcionado por sala | Quando muda o estado visível de uma sala: itens, portas, entrada/saída de jogadores ou item dropado. |
+| `PLAYER_EVENT` | Broadcast | Eventos notáveis como `joined`, `left`, `solved`, `moved`, `countdown_cancelled` e `match_reset`. |
+| `CHAT_BROADCAST` | Broadcast | Redistribuição de mensagem enviada via `CHAT`. |
+| `TIMER_UPDATE` | Broadcast | A cada 120 segundos ou em marcos críticos de tempo. |
 | `HINT` | Unicast | Resposta ao comando `dica`. |
-| `GAME_OVER` | Broadcast | Vitoria, derrota por tempo ou menos de 2 jogadores. |
-| `ERROR` | Unicast | Rejeicao de mensagem ou erro de protocolo/jogo. |
+| `GAME_OVER` | Broadcast | Vitória, derrota por tempo ou menos de 2 jogadores. |
+| `ERROR` | Unicast | Rejeição de mensagem ou erro de protocolo/jogo. |
 
-### 6.5.1. Eventos de `PLAYER_EVENT`
-
-A mensagem `PLAYER_EVENT` informa acontecimentos relevantes que nao sao simples respostas individuais a um comando. O payload segue a estrutura:
-
-```json
-{
-  "event": "joined",
-  "player": "Ana",
-  "detail": "Ana entrou na partida."
-}
-```
-
-Eventos usados pela aplicacao:
+### 6.4.1. Eventos de `PLAYER_EVENT`
 
 | Evento | Quando ocorre |
 |---|---|
 | `joined` | Quando um jogador entra na partida. |
-| `left` | Quando um jogador sai voluntariamente ou cai da conexao. |
-| `moved` | Quando ocorre um movimento cooperativo relevante, como chegada ao Corredor Central. |
-| `solved` | Quando um enigma cooperativo importante e resolvido. |
-| `match_reset` | Quando a partida e reiniciada por perda de um papel essencial. |
-| `countdown_cancelled` | Quando a contagem regressiva e cancelada por falta de jogadores ou papeis essenciais. |
+| `left` | Quando um jogador sai voluntariamente ou cai da conexão. |
+| `moved` | Quando ocorre um movimento cooperativamente relevante, como a chegada ao Corredor Central. |
+| `solved` | Quando um enigma cooperativo importante é resolvido. |
+| `match_reset` | Quando a partida é reiniciada por perda de um papel essencial. |
+| `countdown_cancelled` | Quando a contagem regressiva é cancelada por falta de jogadores ou papéis essenciais. |
 
-### 6.5.2. Unicast, broadcast e atualizacoes direcionadas
+### 6.4.2. Unicast, broadcast e atualizações direcionadas
 
-O servidor escolhe o destinatario de cada mensagem conforme sua finalidade.
+O servidor escolhe o destinatário de cada mensagem conforme sua finalidade. Mensagens unicast são enviadas apenas ao cliente interessado; mensagens broadcast são enviadas a todas as conexões ativas; e algumas atualizações de sala podem ser enviadas somente aos jogadores que permanecem em uma sala específica.
 
-- **Unicast:** usado quando a informacao interessa apenas a um jogador, como `WELCOME`, `GAME_START` individual, `ACTION_RESULT`, `HINT` e `ERROR`.
-- **Broadcast:** usado quando todos precisam saber de uma mudanca global ou cooperativa, como `LOBBY_UPDATE`, `COUNTDOWN`, `MAP_SELECTED`, `PLAYER_EVENT`, `CHAT_BROADCAST`, `TIMER_UPDATE` e `GAME_OVER`.
-- **`ROOM_UPDATE` hibrido:** em acoes comuns, pode ser transmitido a todos e filtrado no cliente por `players_here`. Em casos sensiveis, como desconexao com item dropado, o servidor envia a atualizacao apenas aos jogadores que continuam naquela sala, ja filtrando os objetos conforme o `role` de cada jogador.
+- **Unicast:** usado quando a informação interessa apenas a um jogador, como `WELCOME`, `GAME_START` individual, `ACTION_RESULT`, `HINT` e `ERROR`.
+- **Broadcast:** usado quando todos precisam saber de uma mudança global ou cooperativa, como `LOBBY_UPDATE`, `COUNTDOWN`, `MAP_SELECTED`, `PLAYER_EVENT`, `CHAT_BROADCAST`, `TIMER_UPDATE` e `GAME_OVER`.
+- **ROOM_UPDATE híbrido:** em ações comuns, pode ser transmitido a todos e filtrado no cliente por `players_here`. Em casos sensíveis, como desconexão com item dropado, o servidor envia a atualização apenas aos jogadores que continuam naquela sala, já filtrando os objetos conforme o `role` de cada jogador.
 
-Esse desenho evita trafego desnecessario e tambem impede que um jogador veja objetos exclusivos de outro caminho quando uma sala e compartilhada.
+Esse desenho evita tráfego desnecessário e também impede que um jogador veja objetos exclusivos de outro caminho quando uma sala é compartilhada.
 
-### 6.5.3. Funcionamento do chat
+### 6.4.3. Funcionamento do chat
 
-O chat e implementado com duas mensagens: o cliente envia `CHAT` com o texto digitado e o servidor redistribui `CHAT_BROADCAST` a todos os jogadores conectados. O chat nao depende do estado `IN_GAME`; basta o jogador ja ter concluido o `JOIN`.
+O chat é implementado com duas mensagens: o cliente envia `CHAT` com o texto digitado e o servidor redistribui `CHAT_BROADCAST` a todos os jogadores conectados. O chat não depende do estado `IN_GAME`; basta o jogador já ter concluído o `JOIN`.
 
-A funcao do chat e central para a jogabilidade. Como o jogo nao anuncia automaticamente todo item encontrado, jogadores precisam compartilhar pistas, senhas e descobertas.
+A função do chat é central para a jogabilidade. Como o jogo não anuncia automaticamente todo item encontrado, os jogadores precisam compartilhar pistas, senhas e descobertas.
 
 Exemplo:
 
-Cliente -> Servidor:
-
-```json
-{"type": "CHAT", "payload": {"message": "Achei a senha 1968"}}
+```text
+Cliente -> Servidor: CHAT {"message": "Achei a senha 1968"}
+Servidor -> Todos: CHAT_BROADCAST {"from": "Ana", "message": "Achei a senha 1968"}
 ```
 
-Servidor -> Todos:
+### 6.4.4. Temporização e marcos críticos de tempo
 
-```json
-{"type": "CHAT_BROADCAST", "payload": {"from": "Ana", "message": "Achei a senha 1968"}}
-```
+Cada partida possui um limite de 30 minutos, ou 1800 segundos, contados a partir do envio de `GAME_START`. Esse valor é compartilhado por todos os jogadores e controlado inteiramente pelo servidor, em uma thread dedicada (`_timer_loop`) que verifica o tempo restante a cada segundo.
 
-### 6.5.4. Funcionamento de `ROOM_UPDATE`
+O servidor envia `TIMER_UPDATE` em duas situações:
 
-`ROOM_UPDATE` e usado quando o estado visivel de uma sala muda:
+- periodicamente, a cada 120 segundos;
+- em marcos críticos, quando o tempo restante atinge 300, 60, 30 ou 10 segundos.
 
-- item foi pego;
-- item apareceu;
-- porta foi destrancada;
-- jogador entrou na sala;
-- jogador saiu da sala;
-- item foi devolvido ao chao apos desconexao.
+Quando o tempo restante chega a zero, o servidor dispara automaticamente `GAME_OVER` com resultado de derrota (`lose`).
 
-O payload inclui:
+### 6.4.5. Exemplos de mensagens ERP/1.0
 
-```json
-{
-  "room_state": {
-    "name": "recepcao",
-    "exits": {}
-  },
-  "objects": ["terminal_de_monitoramento", "porta_leste"],
-  "players_here": ["Ana"]
-}
-```
+#### Entrada de jogador
 
-Em acoes gerais, o servidor pode transmitir `ROOM_UPDATE` em broadcast, e o cliente renderiza apenas se o proprio jogador estiver em `players_here`. Em atualizacoes mais especificas, como desconexao com itens dropados, o servidor envia `ROOM_UPDATE` apenas para os jogadores que permanecem naquela sala. Nesses casos, a atualizacao tambem respeita o `role` do jogador, evitando que um cliente veja objetos que nao pertencem ao seu caminho.
-
-### 6.5.5. Temporizacao e marcos criticos de tempo
-
-Cada partida possui um limite de 30 minutos (`1800` segundos), contados a partir do envio do `GAME_START`. Esse valor e compartilhado por todos os jogadores e controlado inteiramente pelo servidor em uma thread dedicada (`_timer_loop`), que verifica o tempo restante a cada segundo.
-
-O servidor envia `TIMER_UPDATE` em duas situacoes:
-
-- periodicamente, a cada 120 segundos de jogo;
-- em marcos criticos, quando o tempo restante atinge exatamente 300, 60, 30 ou 10 segundos.
-
-Quando o tempo restante chega a zero, o servidor dispara automaticamente `GAME_OVER` com resultado de derrota (`lose`), encerrando a partida mesmo que os jogadores nao tenham percebido o aviso anterior.
-
-### 6.5.6. Exemplos de mensagens ERP/1.0
-
-#### Entrada de um jogador
-
-Cliente -> Servidor:
+Cliente → Servidor:
 
 ```json
 {
@@ -481,7 +370,7 @@ Cliente -> Servidor:
 }
 ```
 
-Servidor -> Cliente:
+Servidor → Cliente:
 
 ```json
 {
@@ -493,9 +382,9 @@ Servidor -> Cliente:
 }
 ```
 
-#### Execucao de uma acao
+#### Execução de uma ação
 
-Cliente -> Servidor:
+Cliente → Servidor:
 
 ```json
 {
@@ -506,191 +395,124 @@ Cliente -> Servidor:
 }
 ```
 
-Servidor -> Cliente:
+Servidor → Cliente:
 
 ```json
 {
   "type": "ACTION_RESULT",
   "payload": {
     "success": true,
-    "message": "O terminal exibe uma sequencia numerica.",
+    "message": "O terminal exibe uma sequência numérica.",
     "state_changed": false
+  }
+}
+```
+
+#### Mensagem de chat
+
+Cliente → Servidor:
+
+```json
+{
+  "type": "CHAT",
+  "payload": {
+    "message": "Encontrei a senha 1968."
+  }
+}
+```
+
+Servidor → Todos:
+
+```json
+{
+  "type": "CHAT_BROADCAST",
+  "payload": {
+    "from": "Lucas",
+    "message": "Encontrei a senha 1968."
   }
 }
 ```
 
 #### Mensagem de erro
 
-Servidor -> Cliente:
+Servidor → Cliente:
 
 ```json
 {
   "type": "ERROR",
   "payload": {
     "code": "NOT_IN_GAME",
-    "message": "A partida ainda nao foi iniciada."
+    "message": "A partida ainda não foi iniciada."
   }
 }
 ```
 
-### 6.6. Codigos de erro
+### 6.5. Códigos de erro
 
-| Codigo | Quando e gerado |
+| Código | Quando é gerado |
 |---|---|
-| `NAME_TAKEN` | `JOIN` com nome de usuario ja utilizado por outro jogador conectado. |
-| `GAME_FULL` | `JOIN` quando a partida ja atingiu 4 jogadores. |
-| `GAME_IN_PROGRESS` | `JOIN` quando o servidor nao esta em `WAITING_PLAYERS`. |
-| `INVALID_ACTION` | Nome vazio, mapa invalido, tipo desconhecido, JSON malformado ou comando antes do `JOIN`. |
+| `NAME_TAKEN` | `JOIN` com nome de usuário já utilizado por outro jogador conectado. |
+| `GAME_FULL` | `JOIN` quando a partida já atingiu 4 jogadores. |
+| `GAME_IN_PROGRESS` | `JOIN` quando o servidor não está em `WAITING_PLAYERS`. |
+| `INVALID_ACTION` | Nome vazio, mapa inválido, tipo desconhecido, JSON malformado ou comando antes do `JOIN`. |
 | `NOT_IN_GAME` | `ACTION` enviada fora do estado `IN_GAME`. |
 
-### 6.7. Fluxo resumido de uma partida
+### 6.6. Fluxo resumido de uma partida
 
-```mermaid
-sequenceDiagram
-    participant A as Cliente A
-    participant B as Cliente B
-    participant S as Servidor
+1. Cliente A envia `JOIN {"username": "Ana"}`.
+2. Servidor responde `WELCOME` para A.
+3. Servidor envia `MAP_VOTE_STATE` e `LOBBY_UPDATE`.
+4. Cliente B envia `JOIN {"username": "Bruno"}`.
+5. Servidor responde `WELCOME` para B.
+6. Jogadores enviam `READY`.
+7. Servidor inicia `COUNTDOWN`.
+8. Ao fim da contagem, servidor envia `MAP_SELECTED`.
+9. Servidor envia `GAME_START` individual: A recebe `recepcao`, B recebe `sala_de_forca`.
+10. Durante a partida, clientes enviam `ACTION` e `CHAT`.
+11. Servidor responde com `ACTION_RESULT`, `ROOM_UPDATE`, `PLAYER_EVENT`, `CHAT_BROADCAST` e `TIMER_UPDATE`, conforme o caso.
+12. Quando a saída final é alcançada, servidor envia `GAME_OVER`.
+13. Após 10 segundos, o servidor reseta automaticamente para o lobby.
 
-    A->>S: JOIN {username: "Ana"}
-    S-->>A: WELCOME
-    S-->>A: MAP_VOTE_STATE
-    S-->>A: LOBBY_UPDATE
+### 6.7. Concorrência e consistência
 
-    B->>S: JOIN {username: "Bruno"}
-    S-->>B: WELCOME
-    S-->>A: LOBBY_UPDATE
-    S-->>B: LOBBY_UPDATE
-
-    A->>S: MAP_VOTE {map: "hospital"}
-    S-->>A: MAP_VOTE_STATE
-    S-->>B: MAP_VOTE_STATE
-
-    A->>S: READY
-    B->>S: READY
-    S-->>A: COUNTDOWN
-    S-->>B: COUNTDOWN
-
-    S-->>A: MAP_SELECTED
-    S-->>B: MAP_SELECTED
-    S-->>A: GAME_START {room: "recepcao"}
-    S-->>B: GAME_START {room: "sala_de_forca"}
-
-    A->>S: ACTION {command: "examinar terminal"}
-    S-->>A: ACTION_RESULT
-
-    A->>S: CHAT {message: "Achei a senha 1968"}
-    S-->>A: CHAT_BROADCAST
-    S-->>B: CHAT_BROADCAST
-
-    A->>S: ACTION {command: "ir norte"}
-    S-->>A: GAME_OVER {result: "win"}
-    S-->>B: GAME_OVER {result: "win"}
-```
-
-### 6.8. Concorrencia e consistencia
-
-Cada cliente e atendido por uma thread dedicada. Como todas compartilham o `GameState` e o dicionario de conexoes, operacoes de `JOIN`, `READY`, `ACTION`, `CHAT` e desconexao sao processadas dentro de um lock.
-
-Isso faz com que, do ponto de vista do estado do jogo, uma mensagem seja processada de cada vez, evitando corrupcao de estado em acoes concorrentes. Por exemplo, se dois jogadores tentarem pegar o mesmo item ao mesmo tempo, o servidor processa uma acao por vez. Depois que o primeiro jogador pega o item, o objeto deixa de estar disponivel; o segundo jogador recebe uma resposta coerente com o estado atualizado.
+Cada cliente é atendido por uma thread dedicada. Como todas compartilham o `GameState` e o dicionário de conexões, operações de `JOIN`, `READY`, `ACTION`, `CHAT` e desconexão são processadas dentro de um `lock`. Isso faz com que, do ponto de vista do estado do jogo, uma mensagem seja processada de cada vez, evitando corrupção de estado em ações concorrentes.
 
 ---
 
 ## 7. Subprotocolo de descoberta de servidor por UDP broadcast
 
-O `launcher.py` implementa um subprotocolo auxiliar sobre UDP para que um jogador consiga encontrar automaticamente uma partida ja criada na rede local. Esse mecanismo nao substitui o ERP/1.0: ele so descobre onde esta o servidor TCP.
+O `launcher.py` implementa um subprotocolo auxiliar sobre UDP para que um jogador consiga encontrar automaticamente uma partida já criada na rede local. Esse mecanismo não substitui o ERP/1.0: ele só descobre onde está o servidor TCP.
 
-Quando alguem escolhe `Criar partida`, o launcher inicia o servidor TCP e, paralelamente, transmite periodicamente uma mensagem UDP broadcast na porta `5001`. A mensagem tem formato de texto simples, sem JSON:
+Quando alguém escolhe `Criar partida`, o `launcher.py` inicia o servidor TCP e, paralelamente, transmite periodicamente uma mensagem UDP broadcast na porta `5001`. A mensagem tem formato de texto simples:
 
 ```text
 ESCAPE_ROOM_ERP1:<ip_do_servidor>:<porta_tcp_do_jogo>
 ```
 
-Exemplo:
+Quando outro jogador escolhe `Entrar em partida`, o launcher abre um socket UDP na porta `5001` e escuta por até alguns segundos. Se receber uma mensagem com o prefixo `ESCAPE_ROOM_ERP1:`, extrai o IP e a porta TCP e então abre a conexão real do jogo via TCP. Se nada for encontrado, o cliente entra no modo manual e pede o IP do servidor por teclado.
 
-```text
-ESCAPE_ROOM_ERP1:192.168.0.10:5000
-```
-
-Quando outro jogador escolhe `Entrar em partida`, o launcher abre um socket UDP na porta `5001` e escuta por ate alguns segundos. Se receber uma mensagem com o prefixo `ESCAPE_ROOM_ERP1:`, extrai o IP e a porta TCP e entao abre a conexao real do jogo via TCP. Se nada for encontrado, o cliente entra no modo manual e pede o IP do servidor por teclado.
-
-### 7.1. Portas usadas
-
-| Porta | Protocolo | Uso |
-|---|---|---|
-| `5000` | TCP | Comunicacao principal do jogo. |
-| `5001` | UDP | Descoberta automatica de servidor pelo launcher. |
-
-### 7.2. Passos ao criar partida
-
-Quando o jogador escolhe:
-
-```text
-1. Criar partida
-```
-
-O `launcher.py`:
-
-1. inicia o servidor TCP em `0.0.0.0:5000`;
-2. detecta o IP local da maquina;
-3. inicia uma thread de UDP broadcast;
-4. envia a presenca do servidor a cada 2 segundos;
-5. abre o cliente local conectado em `127.0.0.1`.
-
-### 7.3. Passos ao entrar em partida
-
-Quando o jogador escolhe:
-
-```text
-2. Entrar em partida
-```
-
-O `launcher.py`:
-
-1. abre um socket UDP na porta `5001`;
-2. escuta broadcasts por ate 6 segundos;
-3. se encontrar uma mensagem `ESCAPE_ROOM_ERP1`, extrai IP e porta;
-4. abre o cliente TCP conectado ao servidor encontrado;
-5. se nao encontrar servidor, pede o IP manualmente.
-
-### 7.4. Por que UDP aqui?
-
-UDP e suficiente para a descoberta porque a mensagem e reenviada periodicamente. Se um pacote for perdido, outro sera enviado poucos segundos depois. Alem disso, broadcast e uma operacao natural em UDP. TCP e orientado a conexao ponto-a-ponto, entao nao serve para descobrir um servidor cujo IP ainda e desconhecido.
-
-O uso de UDP aqui e propositalmente limitado a descoberta. O jogo em si permanece em TCP para garantir confiabilidade, ordem e conexao persistente.
+O uso de UDP é adequado aqui porque a descoberta é tolerante a perdas. Se um pacote de anúncio for perdido, outro será enviado pouco depois. Já o jogo em si permanece em TCP para garantir confiabilidade, ordem e conexão persistente.
 
 ---
 
-## 8. Limitacoes conhecidas
+## 8. Limitações conhecidas
 
-### 8.1. Apenas um mapa jogavel
-
-O projeto possui apenas um mapa jogavel, `hospital`, embora a infraestrutura de votacao (`MAP_VOTE`, `MAP_VOTE_STATE`, `MAP_SELECTED`) ja esteja preparada para multiplos mapas no futuro.
-
-### 8.2. Descoberta automatica limitada a LAN
-
-A auto-descoberta por UDP broadcast funciona apenas dentro do mesmo segmento de rede local. Em redes com isolamento de clientes, VPNs, firewalls restritivos ou multiplas sub-redes, o modo manual por IP deve ser usado.
-
-### 8.3. Windows e `readline`
-
-No Windows nativo, o cliente pode exigir `pyreadline3` ou execucao via WSL por causa do uso de `readline` para preservar melhor o input do usuario no terminal.
-
-### 8.4. Segundo `JOIN` em cliente mal-comportado
-
-O servidor documenta e tolera a repeticao de `JOIN` antes do `WELCOME` para o fluxo de nome ja usado. Esse comportamento e necessario porque, quando o nome esta repetido, o cliente precisa poder tentar outro nome na mesma conexao.
-
-O cliente oficial so envia `JOIN` repetidamente durante esse fluxo, antes de receber `WELCOME`. Entretanto, do ponto de vista do servidor, um cliente mal-comportado que enviasse manualmente um segundo `JOIN` valido depois de ja autenticado poderia registrar um jogador extra compartilhando o mesmo socket. Esse caso nao ocorre no cliente de referencia, mas e uma limitacao conhecida do handler de `JOIN`.
+- O projeto possui apenas um mapa jogável, `hospital`, embora a infraestrutura de votação já esteja preparada para múltiplos mapas no futuro.
+- A descoberta por UDP broadcast só funciona dentro do mesmo segmento de rede local. Em redes com isolamento de clientes, VPNs ou múltiplas sub-redes, o modo manual por IP deve ser usado.
+- No Windows nativo, o cliente pode exigir `pyreadline3` ou execução via WSL por causa do uso de `readline` para preservar melhor o input do usuário no terminal.
+- O servidor documenta e tolera a repetição de `JOIN` antes do `WELCOME` para o fluxo de nome já usado. Um cliente mal-comportado que tente fugir do cliente de referência pode exigir validações extras em versões futuras.
 
 ---
 
-## 9. Instrucoes de execucao
+## 9. Instruções de execução
 
-As dependencias completas ja estao descritas na [secao 4](#4-requisitos-minimos-de-funcionamento). Aqui o foco e nos comandos de execucao.
+As dependências completas já estão descritas na seção 4. Aqui o foco é apenas nos comandos de execução.
 
 ### 9.1. Forma recomendada: `launcher.py`
 
-A maneira mais simples de rodar o jogo, especialmente em apresentacao, e atraves do launcher, que ja cuida da descoberta automatica de servidor via UDP broadcast.
+A maneira mais simples de rodar o jogo, especialmente em apresentação, é através do launcher, que já cuida da descoberta automática de servidor via UDP broadcast.
 
-No computador que sera o host:
+No computador que será o host:
 
 ```bash
 python3 launcher.py
@@ -702,7 +524,7 @@ Em seguida, escolher:
 1. Criar partida
 ```
 
-Esse computador inicia o servidor TCP, entra como jogador local e passa a transmitir periodicamente sua presenca na rede via UDP broadcast.
+Esse computador inicia o servidor TCP, entra como jogador local e passa a transmitir periodicamente sua presença na rede via UDP broadcast.
 
 Nos computadores dos demais jogadores:
 
@@ -716,11 +538,9 @@ Em seguida, escolher:
 2. Entrar em partida
 ```
 
-O launcher tenta localizar automaticamente o servidor na rede local. Se encontrar, conecta sozinho; se nao encontrar, solicita o IP do servidor manualmente. Pressionar Enter no modo manual conecta em `127.0.0.1`.
+O launcher tenta localizar automaticamente o servidor na rede local por alguns segundos. Se encontrar, conecta sozinho; se não encontrar, solicita o IP do servidor manualmente. Pressionar Enter no modo manual conecta em `127.0.0.1`.
 
 ### 9.2. Forma manual: `server.py` e `client.py`
-
-Tambem e possivel rodar servidor e clientes separadamente, sem o launcher. Isso e util para depuracao ou quando o broadcast UDP nao esta disponivel.
 
 No computador servidor:
 
@@ -728,7 +548,7 @@ No computador servidor:
 python3 server.py
 ```
 
-Por padrao, o servidor escuta em `0.0.0.0` na porta TCP `5000`. Host e porta podem ser sobrescritos:
+Por padrão, o servidor escuta em `0.0.0.0` na porta TCP `5000`. Host e porta podem ser sobrescritos:
 
 ```bash
 python3 server.py --host 0.0.0.0 --port 5000
@@ -746,57 +566,32 @@ Exemplo em rede local:
 python3 client.py --host 192.168.0.10
 ```
 
-Para testar tudo na mesma maquina:
+Para testar tudo na mesma máquina:
 
 ```bash
 python3 client.py --host 127.0.0.1
 ```
 
-### 9.3. Gerando um executavel standalone (opcional)
+### 9.3. Gerando um executável standalone (opcional)
 
-Para distribuir o launcher sem exigir que o jogador execute o arquivo `.py` diretamente, e possivel empacotar o programa com o PyInstaller:
+Para distribuir o cliente sem exigir Python instalado na máquina do jogador, é possível empacotar o `launcher.py` com PyInstaller:
 
 ```bash
 python -m pip install pyinstaller
 pyinstaller --onefile launcher.py
 ```
 
-O executavel gerado fica disponivel na pasta `dist/`. Essa etapa e opcional e nao substitui os requisitos da secao 4 no computador que efetivamente roda o servidor.
+O executável gerado fica disponível na pasta `dist/`. Essa etapa é opcional e não substitui os requisitos da seção 4 no computador que efetivamente roda o servidor.
 
 ---
 
-## 10. Comandos uteis para apresentacao
-
-### Iniciar pelo launcher
-
-```bash
-python3 launcher.py
-```
-
-### Iniciar manualmente o servidor
-
-```bash
-python3 server.py
-```
-
-### Entrar manualmente como cliente
-
-```bash
-python3 client.py --host 127.0.0.1
-```
-
-ou:
-
-```bash
-python3 client.py --host IP_DO_SERVIDOR
-```
-
-### Comandos de jogo
+## 10. Comandos úteis para apresentação
 
 ```text
 ready
 votar hospital
 olhar
+sala
 inventario
 dica
 chat <mensagem>
